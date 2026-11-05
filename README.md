@@ -22,7 +22,6 @@
 | [functional.md](functional.md) | Роли, пользовательские истории, сценарии, объём прототипа |
 | [architecture.md](architecture.md) | Текстовое описание архитектуры и открытые вопросы |
 | [architecture.excalidraw](architecture.excalidraw) | Схема архитектуры (открывается на excalidraw.com) |
-| [DEPLOY.md](DEPLOY.md) | Запуск, подключение YandexGPT, размещение в Yandex Cloud (код приложения в `app/`) |
 | [spravochnik.md](spravochnik.md) | Учебный справочник: 8 показателей, пояснения, правила рекомендаций (данные в [spravochnik.json](spravochnik.json)) |
 
 ## Технологии (предлагается)
