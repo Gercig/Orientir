@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Ориентир: пациенты{% endblock %}
+{% block mainclass %}wide{% endblock %}
+{% block content %}
+<div class="head" style="align-items:flex-end">
+<div><h1 style="font-size:36px">Мои пациенты</h1>
+<p class="muted" style="font-size:17px;margin:0">Выберите пациента, чтобы открыть его анализы и динамику показателей</p></div>
+<a class="primary" href="#add" onclick="document.getElementById('addbox').open=true">+ Добавить пациента</a>
+</div>
+
+<div class="stats">
+<div class="stat"><span>Всего пациентов</span><b>{{ stats.patients }}</b></div>
+<div class="stat"><span>Анализов за {{ stats.month_gen }}</span><b>{{ stats.analyses }}</b></div>
+<div class="stat warn"><span>Требуют внимания</span><b>{{ stats.attention }}</b></div>
+</div>
+
+{% if err %}<div class="errors" role="alert">{{ err }}</div>{% endif %}
+
+<details class="card" id="addbox" {{ 'open' if err or not patients and not q and not flt }}>
+<summary id="add" style="font-weight:600;font-size:18px;cursor:pointer">Добавить пациента</summary>
+<form method="post" action="/patients" class="row" style="margin-top:16px">
+<div class="field grow2"><label for="fn">ФИО</label><input id="fn" name="full_name" type="text" maxlength="120" value="{{ form.full_name }}" required></div>
+<div class="field"><label for="bd">Дата рождения</label><input id="bd" name="birth" type="date" min="{{ min_birth }}" max="{{ today }}" value="{{ form.birth }}" required></div>
+<fieldset><legend>Пол</legend><div class="radios">
+<label><input type="radio" name="sex" value="f" {{ 'checked' if form.sex=='f' }} required> Девочка</label>
+<label><input type="radio" name="sex" value="m" {{ 'checked' if form.sex=='m' }}> Мальчик</label></div></fieldset>
+<div class="field"><label for="cd">№ карты (пусто = автоматически)</label><input id="cd" name="card" type="text" maxlength="20" value="{{ form.card }}"></div>
+<button class="primary" type="submit">Сохранить</button>
+</form>
+</details>
+
+<section class="card" style="padding:0;gap:0;overflow:hidden">
+<form method="get" action="/patients" class="row" style="padding:20px 24px;border-bottom:1px solid #D5E0E3">
+<div class="field" style="flex:1 1 280px"><label for="q">Поиск по фамилии или номеру карты</label><input id="q" name="q" type="text" value="{{ q }}" placeholder="Например: Соколова или 001004"></div>
+<div class="pills">
+<button class="pill {{ 'on' if not flt }}" name="f" value="" type="submit">Все</button>
+<button class="pill {{ 'on' if flt=='attention' }}" name="f" value="attention" type="submit">Требуют внимания</button>
+<button class="pill {{ 'on' if flt=='new' }}" name="f" value="new" type="submit">Новые анализы</button>
+</div>
+</form>
+<div class="tblwrap">
+<table class="tbl big" style="min-width:820px">
+<tr><th style="padding-left:24px">Пациент</th><th>Карта №</th><th>Возраст</th><th>Последний анализ</th><th>Состояние</th></tr>
+{% for p in patients %}
+<tr><td style="padding-left:24px"><a href="/patients/{{ p.id }}">{{ p.full_name }}</a><div class="muted">{{ 'Девочка' if p.sex=='f' else 'Мальчик' }}</div></td>
+<td>{{ p.card }}</td><td>{{ p.age }}</td>
+<td>{{ p.last_date|dmy if p.last_date else '—' }}</td>
+<td>{% if not p.last_id %}<span class="bd off">Нет анализов</span>{% elif p.bad %}<span class="bd bad">{{ p.bad }} {{ p.bad|plural('отклонение','отклонения','отклонений') }}</span>{% else %}<span class="bd good">В норме</span>{% endif %}</td></tr>
+{% else %}
+<tr><td colspan="5" style="padding:24px" class="muted">{% if q or flt %}Никого не найдено. Измените поиск или фильтр.{% else %}Пациентов пока нет. Добавьте первого выше.{% endif %}</td></tr>
+{% endfor %}
+</table></div>
+<div style="padding:16px 24px;border-top:1px solid #D5E0E3" class="muted">Показано {{ patients|length }} из {{ stats.patients }}</div>
+</section>
+{% endblock %}

@@ -1,0 +1,27 @@
+{% for r in results %}
+<section class="card" style="padding:20px 24px">
+<div class="head">
+<h2 style="font-size:20px">{{ r.ind.name }}</h2>
+{% if r.status=='below' %}<span class="badge below">▼ Ниже интервала на {{ r.diff }} {{ r.ind.unit }} (около {{ r.pct }}%)</span>
+{% elif r.status=='above' %}<span class="badge above">▲ Выше интервала на {{ r.diff }} {{ r.ind.unit }} (около {{ r.pct }}%)</span>
+{% else %}<span class="badge within">● В пределах интервала</span>{% endif %}
+</div>
+<div class="kv">
+<span><span class="muted">Значение:</span> <b>{{ r.value }} {{ r.ind.unit }}</b></span>
+{% if r.prev %}<span><span class="muted">Прошлый анализ ({{ r.prev.date|dmy }}):</span> <b>{{ r.prev.value }}</b> <span class="delta {{ r.prev.cls }}">{{ r.prev.delta }}</span></span>{% endif %}
+<span><span class="muted">Интервал из бланка:</span> <b>{{ r.lower }}–{{ r.upper }} {{ r.ind.unit }}</b></span>
+</div>
+<div role="img" aria-label="Положение значения {{ r.value }} относительно интервала {{ r.lower }}–{{ r.upper }}">
+<div class="bar">
+<div class="track"></div>
+<div class="norm" style="left:{{ r.pos_lo }}%;width:{{ (r.pos_hi - r.pos_lo)|round(1) }}%"></div>
+<div class="mark" style="left:{{ r.pos_v }}%;background:{{ '#134B87' if r.status=='below' else '#8A3B00' if r.status=='above' else '#1F5A32' }}"></div>
+</div>
+<div class="cap" aria-hidden="true"><span style="left:{{ r.pos_v }}%;font-weight:600">{{ r.value }}</span></div>
+</div>
+{% if r.status!='within' %}
+<div class="causes"><b>{{ 'Понижение' if r.status=='below' else 'Повышение' }} показателя «{{ r.ind.name }}» может свидетельствовать о:</b>
+{% if r.causes %}<ul>{% for c in r.causes %}<li>{{ c }}</li>{% endfor %}</ul>{% else %}<span class="muted"> в справочнике не приведено.</span>{% endif %}</div>
+{% endif %}
+</section>
+{% endfor %}

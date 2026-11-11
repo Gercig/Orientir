@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Ориентир{% endblock %}</title>
+<meta name="robots" content="noindex">
+<link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='logo.svg') }}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lora:wght@700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header class="top">
+<a class="brand" href="/"><img class="logo" src="{{ url_for('static', filename='logo.svg') }}" alt="" width="40" height="40"><b>Ориентир</b><span class="muted">помощник врача ДРКБ</span></a>
+{% if user %}<nav class="nav" aria-label="Разделы">
+{% if user.role=='admin' %}<a href="/admin" class="{{ 'on' if nav=='admin' }}">Клиники и врачи</a>
+{% else %}<a href="/patients" class="{{ 'on' if nav=='patients' }}">Пациенты</a><a href="/quick" class="{{ 'on' if nav=='quick' }}">Быстрая оценка</a>{% endif %}
+</nav>
+<span class="who muted"><a href="/password">{{ user.login }}</a>{% if user.clinic_name %} · {{ user.clinic_name }}{% endif %} · {{ 'администратор' if user.role=='admin' else 'врач' }}
+<form method="post" action="/logout" style="display:inline"><button class="linkbtn" type="submit">Выйти</button></form></span>{% endif %}
+</header>
+<main class="{% block mainclass %}{% endblock %}">
+{% block content %}{% endblock %}
+</main>
+</body>
+</html>

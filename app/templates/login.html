@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Ориентир: вход{% endblock %}
+{% block content %}
+<section class="card" style="max-width:420px;margin:24px auto 0;width:100%">
+<h1 style="font-size:26px">Вход</h1>
+{% if error %}<div class="errors" role="alert">{{ error }}</div>{% endif %}
+<form method="post" autocomplete="on" style="display:flex;flex-direction:column;gap:14px">
+<div class="field"><label for="login">Логин</label><input id="login" name="login" type="text" autocomplete="username" required autofocus></div>
+<div class="field"><label for="password">Пароль</label><input id="password" name="password" type="password" autocomplete="current-password" required></div>
+<button class="primary" type="submit">Войти</button>
+</form>
+<p class="muted" style="margin:0">Логин и пароль выдаёт администратор.</p>
+</section>
+{% endblock %}

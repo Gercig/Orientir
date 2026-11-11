@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Ориентир: анализ {{ a.taken_on|dmy }}{% endblock %}
+{% block content %}
+<p class="crumbs"><a href="/patients">Пациенты</a> / <a href="/patients/{{ p.id }}">{{ p.full_name }}</a> / Анализ от {{ a.taken_on|dmy }}</p>
+<div class="head" style="align-items:flex-end">
+<div><h1>Анализ от {{ a.taken_on|dmy }}</h1>
+<p class="muted" style="font-size:16px;margin:0">{{ p.full_name }} · {{ age }} · {{ a.lab or 'лаборатория не указана' }} · показателей: {{ results|length }} · отклонений: {{ dev }}</p></div>
+<a class="secondary" href="/patients/{{ p.id }}">← К карточке пациента</a>
+</div>
+{% if just_saved %}<div class="note" role="status" style="background:#E3F1D5;color:#2A5410">Анализ сохранён. График динамики обновлён.</div>{% endif %}
+{% include "_results.html" %}
+<section class="card ai">
+<h2 style="font-size:20px">Анализ YandexGPT</h2>
+{% if a.ai_text %}
+<p style="margin:0;white-space:pre-line">{{ a.ai_text }}</p>
+<p class="muted" style="margin:0;font-size:13px">{{ 'Ответ ИИ. Советы по лечению не допускаются.' if a.ai_kind=='ai' else 'Ответ составлен из справочника, а не ИИ.' }}</p>
+{% else %}<p class="muted" style="margin:0">Разбор ещё не получен.</p>{% endif %}
+<form method="post" action="/patients/{{ p.id }}/analyses/{{ a.id }}/ai"><button class="secondary" type="submit">{{ 'Разобрать заново' if a.ai_text else 'Получить разбор' }}</button></form>
+</section>
+<section class="card ai">
+<h2 style="font-size:20px">Задать свой вопрос</h2>
+<div class="field"><label for="q">Вопрос к YandexGPT по этому анализу</label>
+<div class="qbox"><input id="q" type="text" maxlength="200" placeholder="Например: на что обратить внимание при повторном анализе?"><button type="button" class="ask" id="send">Спросить</button></div>
+<div class="muted" style="display:flex;justify-content:space-between;gap:8px;font-size:13px"><span>Не вводите имена, даты, номера и другие данные пациента.</span><span id="cnt">0 / 200</span></div></div>
+<div id="chat" style="display:flex;flex-direction:column;gap:12px" aria-live="polite"></div>
+</section>
+<footer>Ответы ИИ даны для рассмотрения врачом и не заменяют клиническое решение. В YandexGPT передаются возраст, пол, значения и прошлые значения без дат, имя не передаётся.</footer>
+<script type="application/json" id="ctx">{{ ctx|tojson }}</script>
+<script>
+const ctx=JSON.parse(document.getElementById('ctx').textContent);
+const chat=document.getElementById('chat'),q=document.getElementById('q'),cnt=document.getElementById('cnt');
+q.addEventListener('input',()=>cnt.textContent=q.value.length+' / 200');
+function bubble(cls,label,text){const d=document.createElement('div');d.className='bubble '+cls;
+ if(label){const s=document.createElement('small');s.textContent=label;d.appendChild(s);}
+ d.appendChild(document.createTextNode(text));d.style.whiteSpace='pre-line';chat.appendChild(d);return d;}
+async function ask(){
+ const text=q.value.trim();if(!text)return;q.value='';cnt.textContent='0 / 200';
+ const w=bubble('ba','YandexGPT','Думаю…');
+ try{const r=await fetch('/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...ctx,text})});
+  const j=await r.json();
+  if(j.ok){const u=document.createElement('div');u.className='bubble bq';u.textContent=j.q;chat.insertBefore(u,w);}
+  w.lastChild.textContent=j.text;w.firstChild.textContent=j.ai?'YandexGPT':(j.ref?'Справочник':'Сообщение');
+ }catch(e){w.lastChild.textContent='Не удалось получить ответ. Повторите позже.';}
+}
+document.getElementById('send').addEventListener('click',ask);
+q.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();ask();}});
+</script>
+{% endblock %}

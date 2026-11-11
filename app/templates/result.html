@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Ориентир: результат{% endblock %}
+{% block content %}
+<div class="head" style="align-items:flex-end">
+<div>
+<h1>Результат оценки</h1>
+<p class="muted" style="font-size:16px;margin:0">{{ sex }}, {{ age }} · показателей: {{ results|length }} · отклонений: {{ dev }}</p>
+</div>
+<a class="secondary" href="/quick">← Изменить данные</a>
+</div>
+
+{% include "_results.html" %}
+
+<section class="card ai">
+<h2 style="font-size:20px">Анализ YandexGPT</h2>
+{% if answer.ai or answer.ref %}
+<p style="margin:0;white-space:pre-line">{{ answer.text }}</p>
+<p class="muted" style="margin:0;font-size:13px">{% if answer.ref %}Ответ составлен из справочника, а не ИИ.{% else %}Ответ ИИ. Советы по лечению не допускаются.{% endif %}</p>
+{% else %}
+<div class="note">{{ answer.text }}</div>
+{% endif %}
+</section>
+
+<section class="card ai">
+<h2 style="font-size:20px">Задать свой вопрос</h2>
+<div class="field">
+<label for="q">Вопрос к YandexGPT по этому анализу</label>
+<div class="qbox"><input id="q" type="text" maxlength="200" placeholder="Например: на что обратить внимание при повторном анализе?"><button type="button" class="ask" id="send">Спросить</button></div>
+<div class="muted" style="display:flex;justify-content:space-between;gap:8px;font-size:13px"><span>Не вводите имена, даты, номера и другие данные пациента.</span><span id="cnt">0 / 200</span></div>
+</div>
+<div id="chat" style="display:flex;flex-direction:column;gap:12px" aria-live="polite"></div>
+</section>
+
+<div class="row" style="align-items:center">
+<a class="primary" href="/quick">Новая оценка</a>
+<span class="muted">Кнопка очищает всё введённое и историю вопросов</span>
+</div>
+
+<footer>Ответы ИИ даны для рассмотрения врачом и не заменяют клиническое решение. В YandexGPT передаются возраст, пол и значения, без имени и дат. Быстрая оценка ничего не сохраняет.</footer>
+
+<script type="application/json" id="ctx">{{ ctx|tojson }}</script>
+<script>
+const ctx=JSON.parse(document.getElementById('ctx').textContent);
+const chat=document.getElementById('chat'),q=document.getElementById('q'),cnt=document.getElementById('cnt');
+q.addEventListener('input',()=>cnt.textContent=q.value.length+' / 200');
+function bubble(cls,label,text){const d=document.createElement('div');d.className='bubble '+cls;
+ if(label){const s=document.createElement('small');s.textContent=label;d.appendChild(s);}
+ d.appendChild(document.createTextNode(text));d.style.whiteSpace='pre-line';chat.appendChild(d);return d;}
+async function ask(){
+ const text=q.value.trim();if(!text)return;q.value='';cnt.textContent='0 / 200';
+ const w=bubble('ba','YandexGPT','Думаю…');
+ try{const r=await fetch('/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...ctx,text})});
+  const j=await r.json();
+  if(j.ok){const u=document.createElement('div');u.className='bubble bq';u.textContent=j.q;chat.insertBefore(u,w);}
+  w.lastChild.textContent=j.text;w.firstChild.textContent=j.ai?'YandexGPT':(j.ref?'Справочник':'Сообщение');
+ }catch(e){w.lastChild.textContent='Не удалось получить ответ. Повторите позже.';}
+}
+document.getElementById('send').addEventListener('click',ask);
+q.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();ask();}});
+</script>
+{% endblock %}

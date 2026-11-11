@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Ориентир: новый анализ{% endblock %}
+{% block mainclass %}wide{% endblock %}
+{% block content %}
+<p class="crumbs"><a href="/patients">Пациенты</a> / <a href="/patients/{{ p.id }}">{{ p.full_name }}</a> / Новый анализ</p>
+<div><h1 style="font-size:36px">Новый анализ</h1>
+<p class="muted" style="font-size:17px;margin:0">{{ p.full_name }} · {{ 'девочка' if p.sex=='f' else 'мальчик' }} · {{ p.age }} · карта № {{ p.card }}</p></div>
+{% if errors %}<div class="errors" role="alert"><b>Проверьте ввод:</b><ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div>{% endif %}
+<form method="post" autocomplete="off" style="display:contents">
+<div class="split">
+<div class="main">
+<section class="card">
+<h2>1. Дата и источник</h2>
+<div class="row">
+<div class="field"><label for="taken">Дата анализа</label><input id="taken" name="taken_on" type="date" min="{{ p.birth }}" max="{{ today }}" value="{{ form.taken_on }}" required></div>
+<div class="field grow2"><label for="lab">Лаборатория</label><input id="lab" name="lab" type="text" maxlength="80" value="{{ form.lab }}"></div>
+</div>
+<div style="border:2px dashed #9DBFC5;border-radius:12px;padding:20px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;background:#F4F7F8">
+<div><b>Загрузить бланк анализа</b><div class="muted">Фото или PDF до 5 МБ: показатели распознаются и подставляются в таблицу ниже. Проверьте их перед сохранением.</div><div id="ocrmsg" class="muted" role="status" style="margin-top:6px;font-weight:600"></div></div>
+<div><input id="blank" type="file" accept="image/png,image/jpeg,application/pdf" hidden><button type="button" class="secondary" id="pick">Выбрать файл</button></div>
+</div>
+</section>
+<section class="card">
+<div class="head"><h2>2. Показатели</h2><span class="muted">Интервалы подставляются по возрасту на дату анализа, их можно изменить</span></div>
+<div id="rows">
+{% for r in form.rows %}
+<div class="row irow">
+<div class="field grow2"><label>Показатель</label>
+<select name="indicator" required><option value="">— выберите —</option>
+{% for i in indicators %}<option value="{{ i.id }}" data-unit="{{ i.unit }}" {{ 'selected' if r.indicator|string==i.id|string }}>{{ i.name }}</option>{% endfor %}</select></div>
+<div class="field grow1"><label>Значение</label><input type="text" name="value" inputmode="decimal" value="{{ r.value }}"></div>
+<div class="field unit"><span class="lbl">Единица</span><span class="u">{% for i in indicators %}{% if r.indicator|string==i.id|string %}{{ i.unit }}{% endif %}{% endfor %}</span></div>
+<div class="field grow1"><label>Интервал от</label><input type="text" name="lower" inputmode="decimal" value="{{ r.lower }}"></div>
+<div class="field grow1"><label>до</label><input type="text" name="upper" inputmode="decimal" value="{{ r.upper }}"></div>
+<div class="field grow1"><span class="lbl">Прошлый</span><span class="pv" style="height:44px;display:flex;align-items:center;color:#33464E">—</span></div>
+<button type="button" class="icon rm" aria-label="Удалить показатель">✕</button>
+</div>
+{% endfor %}
+</div>
+<div><button type="button" class="dashed" id="add">+ Добавить показатель</button></div>
+<p class="muted" style="margin:0">Строки без значения пропускаются.</p>
+</section>
+<div class="row"><button class="primary" type="submit">Сохранить и разобрать</button><a class="secondary" href="/patients/{{ p.id }}">Отмена</a></div>
+</div>
+<aside class="side">
+<section class="sidebox"><h2>Что изменится</h2>
+<p>После сохранения анализ появится в истории пациента, график динамики обновится, а YandexGPT получит прошлые значения и опишет динамику.</p>
+<p style="font-size:14px;opacity:.85">В запрос уходят возраст, пол и значения. Имя, карта и даты не передаются.</p></section>
+<section class="card"><h2>Подсказки</h2>
+<ul style="margin:0;padding-left:20px;line-height:1.5;display:flex;flex-direction:column;gap:8px">
+<li>Показатели из прошлого анализа уже добавлены в таблицу</li>
+<li>Если значения нет в бланке, оставьте строку пустой</li>
+<li>Столбец «Прошлый» показывает последнее значение и разницу</li></ul></section>
+</aside>
+</div>
+</form>
+<script type="application/json" id="prev">{{ prev|tojson }}</script>
+<script>
+const INTERVALS={{ intervals|safe }};
+const BIRTH=new Date('{{ p.birth }}T00:00:00'),SEX='{{ p.sex }}';
+const PREV=JSON.parse(document.getElementById('prev').textContent);
+const rows=document.getElementById('rows');
+function ageMonths(){const v=document.getElementById('taken').value;if(!v)return null;const d=new Date(v+'T00:00:00');
+ let m=(d.getFullYear()-BIRTH.getFullYear())*12+d.getMonth()-BIRTH.getMonth()-(d.getDate()<BIRTH.getDate()?1:0);
+ if(m<0)return null;if(m===0){const w=Math.min(3,Math.floor((d-BIRTH)/6048e5));return w*0.25;}return m;}
+function findBin(id,age){const L=INTERVALS[id];if(!L||age===null)return null;for(const b of L){if(age>=b.from-1e-9&&age<b.to-1e-9)return b[SEX];}return null;}
+function num(s){return parseFloat(String(s).replace(',','.'));}
+function fmt(x){return String(Math.round(x*100)/100).replace('.',',');}
+function prevSync(row){const id=row.querySelector('select').value,el=row.querySelector('.pv'),p=PREV[id],v=num(row.querySelector('[name=value]').value);
+ if(!p){el.textContent='—';return;}let t=p.value;if(!isNaN(v)){const d=Math.round((v-p.raw)*100)/100;t+=' ('+(d>0?'+':d<0?'−':'')+fmt(Math.abs(d))+')';}el.textContent=t;}
+function unitSync(row){const s=row.querySelector('select'),o=s.options[s.selectedIndex];row.querySelector('.u').textContent=o&&o.dataset.unit?o.dataset.unit:'';}
+function autofill(row,force){if(!force&&row.dataset.edited==='1')return;
+ const id=row.querySelector('select').value,lo=row.querySelector('[name=lower]'),hi=row.querySelector('[name=upper]'),t=findBin(id,ageMonths());
+ if(t){lo.value=String(t[0]).replace('.',',');hi.value=String(t[1]).replace('.',',');row.dataset.edited='0';}else{lo.value='';hi.value='';}}
+function bind(row){
+ row.querySelector('select').addEventListener('change',()=>{unitSync(row);autofill(row,true);prevSync(row);});
+ row.querySelector('[name=value]').addEventListener('input',()=>prevSync(row));
+ ['lower','upper'].forEach(n=>row.querySelector('[name='+n+']').addEventListener('input',()=>{row.dataset.edited='1';}));
+ row.querySelector('.rm').addEventListener('click',()=>{if(rows.children.length>1)row.remove();});}
+function blankRow(){const r=rows.children[0].cloneNode(true);r.querySelectorAll('input').forEach(i=>i.value='');r.querySelector('select').selectedIndex=0;r.querySelector('.u').textContent='';r.querySelector('.pv').textContent='—';r.dataset.edited='0';return r;}
+[...rows.children].forEach(r=>{bind(r);if(r.querySelector('[name=lower]').value||r.querySelector('[name=upper]').value)r.dataset.edited='1';else autofill(r,true);prevSync(r);});
+document.getElementById('taken').addEventListener('input',()=>[...rows.children].forEach(r=>autofill(r,false)));
+document.getElementById('add').addEventListener('click',()=>{if(rows.children.length>=12)return;const r=blankRow();bind(r);rows.appendChild(r);});
+
+const msg=document.getElementById('ocrmsg'),fileEl=document.getElementById('blank');
+document.getElementById('pick').addEventListener('click',()=>fileEl.click());
+fileEl.addEventListener('change',async()=>{
+ const f=fileEl.files[0];if(!f)return;msg.style.color='';msg.textContent='Распознаю бланк…';
+ const fd=new FormData();fd.append('file',f);
+ try{const r=await fetch('/patients/{{ p.id }}/analyses/parse',{method:'POST',body:fd});const j=await r.json();
+  if(!j.ok){msg.style.color='#8A3B00';msg.textContent=j.text;return;}
+  if(j.date){document.getElementById('taken').value=j.date;}
+  while(rows.children.length>1)rows.lastChild.remove();
+  j.rows.forEach((x,k)=>{let row=k==0?rows.children[0]:blankRow();if(k>0){bind(row);rows.appendChild(row);}
+   row.querySelector('select').value=x.indicator;unitSync(row);
+   row.querySelector('[name=value]').value=x.value;
+   row.querySelector('[name=lower]').value=x.lower;row.querySelector('[name=upper]').value=x.upper;
+   if(x.lower&&x.upper)row.dataset.edited='1';else autofill(row,true);prevSync(row);});
+  msg.style.color='#2A5410';msg.textContent='Найдено показателей: '+j.rows.length+(j.date?', дата взятия подставлена':'')+'. Проверьте значения и интервалы.';
+ }catch(e){msg.style.color='#8A3B00';msg.textContent='Не удалось связаться с сервером. Введите значения вручную.';}
+ fileEl.value='';});
+</script>
+{% endblock %}

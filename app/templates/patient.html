@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Ориентир: {{ p.full_name }}{% endblock %}
+{% block mainclass %}wide{% endblock %}
+{% block content %}
+<p class="crumbs"><a href="/patients">Пациенты</a> / {{ p.full_name }}</p>
+<div class="head" style="align-items:flex-end">
+<div><h1 style="font-size:36px">{{ p.full_name }}</h1>
+<p class="muted" style="font-size:17px;margin:0">{{ 'Девочка' if p.sex=='f' else 'Мальчик' }} · {{ p.age }} · карта № {{ p.card }} · дата рождения {{ p.birth|dmy }}</p></div>
+<a class="primary" href="/patients/{{ p.id }}/analyses/new">+ Новый анализ</a>
+</div>
+
+<div class="split">
+<div class="main">
+
+<section class="card">
+<div class="head"><h2 style="font-size:22px">Динамика показателя</h2></div>
+{% if inds %}
+<div class="pills" aria-label="Показатель">
+{% for i in inds %}<a class="pill {{ 'on' if i.id==cur.id }}" href="?ind={{ i.id }}&period={{ period }}{% if period=='custom' %}&from={{ d_from }}&to={{ d_to }}{% endif %}">{{ i.name }}</a>{% endfor %}
+</div>
+<div>
+<div class="muted" style="margin-bottom:6px;font-weight:600">Период</div>
+<div class="pills">
+{% for key, label in periods %}<a class="pill {{ 'on' if period==key }}" href="?ind={{ cur.id }}&period={{ key }}">{{ label }}</a>{% endfor %}
+</div></div>
+<form method="get" class="dates">
+<input type="hidden" name="ind" value="{{ cur.id }}"><input type="hidden" name="period" value="custom">
+<div class="field"><label for="df">С даты</label><input id="df" type="date" name="from" value="{{ d_from }}"></div>
+<div class="field"><label for="dt">По дату</label><input id="dt" type="date" name="to" value="{{ d_to }}"></div>
+<button class="secondary" type="submit">Показать</button>
+</form>
+{% if chart %}
+<svg class="chart" viewBox="0 0 800 290" role="img" aria-label="{{ cur.name }}, {{ cur.unit }}: {{ chart.aria }}">
+{% for t in chart.ticks %}<line x1="100" x2="700" y1="{{ t.y }}" y2="{{ t.y }}" stroke="#E3ECEE"/><text x="90" y="{{ t.y + 4 }}" font-size="13" text-anchor="end">{{ t.label }}</text>{% endfor %}
+<rect x="100" y="{{ chart.band_y }}" width="600" height="{{ chart.band_h }}" fill="#BFE3D0" opacity=".45"/>
+<text x="106" y="{{ chart.band_y + chart.band_h - 6 }}" font-size="12" text-anchor="start" style="fill:#2A5410">{{ chart.band_label }}</text>
+{% if chart.points|length>1 %}<polyline points="{{ chart.line }}" fill="none" stroke="#0F6E7A" stroke-width="2.5" stroke-linejoin="round"/>{% endif %}
+{% for pt in chart.points %}
+<circle cx="{{ pt.x }}" cy="{{ pt.y }}" r="6" fill="{{ '#8A3B00' if pt.up else '#134B87' if pt.bad else '#0F6E7A' }}" stroke="#fff" stroke-width="2"/>
+{% if chart.show_values %}<text x="{{ pt.x }}" y="{{ pt.y - 12 }}" font-size="13" font-weight="600" text-anchor="middle" style="fill:#14262E">{{ pt.label }}</text>{% endif %}
+{% if pt.show_date %}<text x="{{ pt.x }}" y="268" font-size="13" text-anchor="middle">{{ pt.date }}</text>{% endif %}
+{% endfor %}
+</svg>
+<p class="muted" style="margin:0">Единица: {{ cur.unit }}. Зелёная полоса: интервал по возрасту на последнюю дату в выбранном периоде. Точки вне полосы выделены цветом.</p>
+{% else %}
+<div class="note">За выбранный период по показателю «{{ cur.name }}» анализов нет. Выберите другой период.</div>
+{% endif %}
+{% else %}
+<p class="muted" style="margin:0">Анализов пока нет. Нажмите «Новый анализ», и здесь появится график.</p>
+{% endif %}
+</section>
+
+<section class="card" style="padding:0;gap:0;overflow:hidden">
+<div style="padding:24px 24px 12px"><h2 style="font-size:22px">История анализов</h2></div>
+<div class="tblwrap"><table class="tbl big" style="min-width:560px">
+<tr><th style="padding-left:24px">Дата</th><th>Лаборатория</th><th>Показателей</th><th>Итог</th><th></th></tr>
+{% for a in history %}
+<tr><td style="padding-left:24px"><b>{{ a.taken_on|dmy }}</b></td><td>{{ a.lab or '—' }}</td><td>{{ a.total }}</td>
+<td>{% if a.bad %}<span class="bd bad">{{ a.bad }} {{ a.bad|plural('отклонение','отклонения','отклонений') }}</span>{% else %}<span class="bd good">В норме</span>{% endif %}</td>
+<td style="text-align:right;padding-right:24px"><a href="/patients/{{ p.id }}/analyses/{{ a.id }}">Открыть</a></td></tr>
+{% else %}<tr><td colspan="5" style="padding:24px" class="muted">Анализов {{ 'за выбранный период ' if period!='all' }}нет.</td></tr>{% endfor %}
+</table></div>
+</section>
+</div>
+
+<div class="side">
+{% if latest %}
+<section class="card ai"><h2 style="font-size:20px">Последний анализ · {{ latest.taken_on|dmy }}</h2>
+{% if latest.ai_text %}<p style="margin:0;white-space:pre-line">{{ latest.ai_text }}</p>
+<p class="muted" style="margin:0;font-size:13px">{{ 'Ответ YandexGPT' if latest.ai_kind=='ai' else 'Ответ из справочника' }}. Советы по лечению не допускаются.</p>
+{% else %}<p class="muted" style="margin:0">Разбор ещё не сделан.</p>{% endif %}
+<a class="secondary" href="/patients/{{ p.id }}/analyses/{{ latest.id }}">Открыть анализ</a>
+</section>
+{% endif %}
+<section class="card">
+<h2 style="font-size:20px">Заметка врача</h2>
+<form method="post" action="/patients/{{ p.id }}/note" style="display:flex;flex-direction:column;gap:12px">
+<label for="note" class="muted">Видна только вам</label>
+<textarea id="note" name="note" maxlength="1000">{{ p.note }}</textarea>
+<button class="secondary" type="submit" style="align-self:flex-start">Сохранить заметку</button>
+</form>
+{% if saved %}<div class="note" role="status" style="background:#E3F1D5;color:#2A5410">Заметка сохранена</div>{% endif %}
+</section>
+</div>
+</div>
+{% endblock %}

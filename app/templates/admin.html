@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Ориентир: администратор{% endblock %}
+{% block mainclass %}wide{% endblock %}
+{% block content %}
+<div><h1 style="font-size:36px">Клиники и врачи</h1>
+<p class="muted" style="font-size:17px;margin:0">Подключение клиник, учётные записи врачей и общая статистика</p></div>
+<div class="stats">
+<div class="stat"><span>Клиник</span><b>{{ stats.clinics }}</b></div>
+<div class="stat"><span>Врачей</span><b>{{ stats.doctors }}</b></div>
+<div class="stat"><span>Пациентов</span><b>{{ stats.patients }}</b></div>
+<div class="stat"><span>Анализов за {{ stats.month_gen }}</span><b>{{ stats.analyses }}</b></div>
+</div>
+{% if err %}<div class="errors" role="alert">{{ err }}</div>{% endif %}
+{% if created %}
+<div class="card ai" role="status"><h2>{{ created.what }}</h2>
+<p style="margin:0">Логин: <b>{{ created.login }}</b><br>Пароль: <b style="font-family:monospace;font-size:18px">{{ created.password }}</b></p>
+<p class="muted" style="margin:0">Пароль показывается один раз. Передайте его врачу и попросите сменить после входа.</p></div>
+{% endif %}
+<section class="card">
+<h2>Добавить клинику</h2>
+<form method="post" action="/admin/clinics" class="row">
+<div class="field grow2"><label for="cname">Название</label><input id="cname" name="name" type="text" maxlength="120" required></div>
+<button class="primary" type="submit">Добавить</button>
+</form>
+</section>
+{% if clinics %}
+<section class="card">
+<h2>Добавить врача</h2>
+<form method="post" action="/admin/doctors" class="row">
+<div class="field grow2"><label for="clinic">Клиника</label><select id="clinic" name="clinic_id" required>
+{% for c in clinics if c.active %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></div>
+<div class="field grow1"><label for="dlogin">Логин (пусто = создастся сам)</label><input id="dlogin" name="login" type="text" maxlength="32" autocomplete="off"></div>
+<div class="field grow1"><label for="dpass">Пароль (пусто = создастся сам)</label><input id="dpass" name="password" type="text" autocomplete="off"></div>
+<button class="primary" type="submit">Добавить</button>
+</form>
+</section>
+{% endif %}
+{% for c in clinics %}
+<section class="card">
+<div class="head"><h2>{{ c.name }}{% if not c.active %} <span class="tag">отключена</span>{% endif %}</h2>
+<form method="post" action="/admin/clinics/{{ c.id }}/toggle"><button class="secondary" type="submit">{{ 'Включить' if not c.active else 'Отключить' }}</button></form></div>
+{% if c.doctors %}
+<table class="tbl"><tr><th>Логин</th><th>Пациентов</th><th>Создан</th><th>Последний вход</th><th></th></tr>
+{% for d in c.doctors %}
+<tr><td><b>{{ d.login }}</b>{% if not d.active %} <span class="tag">отключён</span>{% endif %}</td><td>{{ d.patients }}</td><td>{{ d.created }}</td><td>{{ d.last_login or '—' }}</td>
+<td class="acts">{% if not d.patients and d.active %}<form method="post" action="/admin/doctors/{{ d.id }}/demo"><button class="secondary" type="submit">Демо-пациенты</button></form>{% endif %}<form method="post" action="/admin/doctors/{{ d.id }}/reset"><button class="secondary" type="submit">Новый пароль</button></form>
+<form method="post" action="/admin/doctors/{{ d.id }}/toggle"><button class="secondary" type="submit">{{ 'Включить' if not d.active else 'Отключить' }}</button></form></td></tr>
+{% endfor %}</table>
+{% else %}<p class="muted" style="margin:0">Врачей пока нет.</p>{% endif %}
+</section>
+{% else %}
+<p class="muted">Клиник пока нет. Добавьте первую выше.</p>
+{% endfor %}
+<section class="card">
+<h2 style="font-size:24px">Журнал действий</h2>
+<p class="muted" style="margin:0;font-size:15px">Кто и когда открывал карточки пациентов, вносил анализы и менял учётные записи. В журнале только номера карт, без имён.</p>
+<div class="log">{% for l in journal %}<div><span class="t">{{ l.when }}</span><span class="u">{{ l.login }}</span><span class="w">{{ l.action }}{% if l.detail %}: {{ l.detail }}{% endif %}</span></div>{% else %}<div class="muted">Записей пока нет.</div>{% endfor %}</div>
+</section>
+{% endblock %}

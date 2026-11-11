@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}Ориентир: форма ввода{% endblock %}
+{% block content %}
+<div>
+<h1>Оценка лабораторных показателей</h1>
+<p class="muted" style="font-size:16px;margin:0">Введите возраст, пол и значения из бланка. Интервалы подставляются автоматически по возрасту и полу, их можно изменить. Имена, даты и номера карт вводить не нужно.</p>
+</div>
+
+{% if errors %}
+<div class="errors" role="alert"><b>Проверьте ввод:</b><ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div>
+{% endif %}
+
+<form method="post" action="/evaluate" autocomplete="off" style="display:contents">
+<section class="card">
+<h2>1. Ребёнок</h2>
+<div class="row">
+<div class="field"><label for="years">Возраст, лет</label>
+<input id="years" name="years" type="number" min="0" max="18" class="w110" value="{{ form.years }}" required></div>
+<div class="field"><label for="months">Месяцев</label>
+<input id="months" name="months" type="number" min="0" max="11" class="w110" value="{{ form.months }}"></div>
+<div class="field" id="wkbox"><label for="weeks">Недель (до 1 мес.)</label>
+<input id="weeks" name="weeks" type="number" min="0" max="3" class="w110" value="{{ form.weeks }}"></div>
+<fieldset><legend>Пол</legend>
+<div class="radios">
+<label><input type="radio" name="sex" value="f" {{ 'checked' if form.sex=='f' }} required> Девочка</label>
+<label><input type="radio" name="sex" value="m" {{ 'checked' if form.sex=='m' }}> Мальчик</label>
+</div></fieldset>
+</div>
+</section>
+
+<section class="card">
+<div class="head"><h2>2. Показатели из бланка</h2><span class="muted">Интервал подставлен из справочника по возрасту и полу. Если в бланке другой, измените его</span></div>
+<div id="rows">
+{% for r in form.rows %}
+<div class="row irow">
+<div class="field grow2"><label>Показатель</label>
+<select name="indicator" required>
+<option value="">— выберите —</option>
+{% for i in indicators %}<option value="{{ i.id }}" data-unit="{{ i.unit }}" {{ 'selected' if r.indicator|string==i.id|string }}>{{ i.name }}</option>{% endfor %}
+</select></div>
+<div class="field grow1"><label>Значение</label><input type="text" name="value" inputmode="decimal" value="{{ r.value }}" required></div>
+<div class="field unit"><span class="lbl">Единица</span><span class="u">{% for i in indicators %}{% if r.indicator|string==i.id|string %}{{ i.unit }}{% endif %}{% endfor %}</span></div>
+<div class="field grow1"><label>Интервал от</label><input type="text" name="lower" inputmode="decimal" value="{{ r.lower }}" required></div>
+<div class="field grow1"><label>до</label><input type="text" name="upper" inputmode="decimal" value="{{ r.upper }}" required></div>
+<button type="button" class="icon rm" aria-label="Удалить показатель">✕</button>
+</div>
+{% endfor %}
+</div>
+<div><button type="button" class="dashed" id="add">+ Добавить показатель</button></div>
+</section>
+
+<div class="row">
+<button class="primary" type="submit">Оценить</button>
+</div>
+</form>
+
+<section class="card" style="padding:16px 24px">
+<span class="lbl" style="font-weight:500">Примеры для заполнения</span>
+<div class="demos" id="demos"></div>
+</section>
+
+<p class="muted">Быстрая оценка ничего не сохраняет. В YandexGPT отправляются пол, возраст и значения анализов; имя и другие данные вводить нельзя. Чтобы сохранять анализы и следить за динамикой, откройте раздел «Пациенты».</p>
+
+<script>
+const DEMOS = {{ demos|safe }};
+const INTERVALS = {{ intervals|safe }};
+const rows = document.getElementById('rows');
+function unitSync(row){const s=row.querySelector('select');const o=s.options[s.selectedIndex];row.querySelector('.u').textContent=o&&o.dataset.unit?o.dataset.unit:'';}
+function curSex(){const c=document.querySelector('input[name=sex]:checked');return c?c.value:null;}
+function ageMonths(){
+ const y=parseInt(document.getElementById('years').value,10),m=parseInt(document.getElementById('months').value,10)||0,w=parseInt(document.getElementById('weeks').value,10)||0;
+ if(!(y>=0&&y<=18))return null;
+ return y*12+m+((y===0&&m===0)?w*0.25:0);}
+function wkToggle(){const y=parseInt(document.getElementById('years').value,10)||0,m=parseInt(document.getElementById('months').value,10)||0;
+ document.getElementById('wkbox').style.display=(y===0&&m===0)?'':'none';}
+function findBin(id,sex,age){const L=INTERVALS[id];if(!L||!sex||age===null)return null;
+ for(const b of L){if(age>=b.from-1e-9&&age<b.to-1e-9)return b[sex];}return null;}
+function autofill(row,force){
+ if(!force&&row.dataset.edited==='1')return;
+ const id=row.querySelector('select').value,lo=row.querySelector('[name=lower]'),hi=row.querySelector('[name=upper]');
+ const t=findBin(id,curSex(),ageMonths());
+ if(t){lo.value=String(t[0]).replace('.',',');hi.value=String(t[1]).replace('.',',');row.dataset.edited='0';}
+ else{lo.value='';hi.value='';}
+}
+function refillAll(){[...rows.children].forEach(r=>autofill(r,false));}
+function bind(row){
+ row.querySelector('select').addEventListener('change',()=>{unitSync(row);autofill(row,true);});
+ ['lower','upper'].forEach(n=>row.querySelector('[name='+n+']').addEventListener('input',()=>{row.dataset.edited='1';}));
+ row.querySelector('.rm').addEventListener('click',()=>{if(rows.children.length>1)row.remove();});}
+function blankRow(){const r=rows.children[0].cloneNode(true);r.querySelectorAll('input').forEach(i=>i.value='');r.querySelector('select').selectedIndex=0;r.querySelector('.u').textContent='';r.dataset.edited='0';return r;}
+[...rows.children].forEach(r=>{bind(r);if(r.querySelector('[name=lower]').value||r.querySelector('[name=upper]').value)r.dataset.edited='1';});
+['years','months','weeks'].forEach(i=>document.getElementById(i).addEventListener('input',()=>{wkToggle();refillAll();}));wkToggle();
+document.querySelectorAll('input[name=sex]').forEach(x=>x.addEventListener('change',refillAll));
+document.getElementById('add').addEventListener('click',()=>{if(rows.children.length>=12)return;const r=blankRow();bind(r);rows.appendChild(r);});
+const box=document.getElementById('demos');
+DEMOS.forEach(d=>{const b=document.createElement('button');b.type='button';b.className='secondary';b.textContent=d.title;
+ b.addEventListener('click',()=>{
+  document.getElementById('years').value=d.years;document.getElementById('months').value=d.months;document.getElementById('weeks').value=d.weeks||0;wkToggle();
+  document.querySelector('input[name=sex][value='+d.sex+']').checked=true;
+  while(rows.children.length>1)rows.lastChild.remove();
+  d.rows.forEach((x,k)=>{let r=k==0?rows.children[0]:blankRow();if(k>0){bind(r);rows.appendChild(r);}
+   r.querySelector('select').value=x.indicator;unitSync(r);
+   r.querySelector('[name=value]').value=x.value;r.querySelector('[name=lower]').value=x.lower;r.querySelector('[name=upper]').value=x.upper;r.dataset.edited='1';});
+  window.scrollTo({top:0,behavior:'smooth'});});
+ box.appendChild(b);});
+</script>
+{% endblock %}
