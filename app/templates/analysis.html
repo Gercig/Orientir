@@ -22,7 +22,7 @@
 {% if edited %}<div class="note noprint" role="status" style="background:#E3F1D5;color:#2A5410">Анализ изменён.{% if redo %} Разбор YandexGPT составлен заново.{% endif %}</div>{% endif %}
 {% if just_saved %}<div class="note" role="status" style="background:#E3F1D5;color:#2A5410">Анализ сохранён. График динамики обновлён.</div>{% endif %}
 {% include "_results.html" %}
-<section class="card ai" id="aibox">
+<section class="card ai aibox" id="aibox">
 <h2 style="font-size:20px">Анализ YandexGPT</h2>
 {% if a.ai_text %}
 <p style="margin:0;white-space:pre-line">{{ a.ai_text }}</p>

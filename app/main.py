@@ -515,20 +515,51 @@ def analysis_parse(pid):
     return jsonify(ok=True, **res)
 
 
-@app.get("/patients/<int:pid>/analyses/<int:aid>")
-@role_required("doctor")
-def analysis_page(pid, aid):
-    p = own_patient(pid)
-    a, results = pt.get_analysis(aid, pid, p["sex"])
+def load_analysis(p, aid):
+    """Анализ пациента с результатами и сравнением с прошлыми значениями. None, если анализа нет."""
+    a, results = pt.get_analysis(aid, p["id"], p["sex"])
     if not a:
-        abort(404)
-    prev = pt.previous_values(pid, a["taken_on"], exclude_aid=aid)
+        return None, None
+    prev = pt.previous_values(p["id"], a["taken_on"], exclude_aid=aid)
     for r in results:
         pv = prev.get(r["ind"]["id"])
         if pv:
             d = round(logic.parse_num(r["value"]) - pv["raw"], 3)
             r["prev"] = {"value": pv["value"], "date": pv["date"], "cls": "up" if d > 0 else "down" if d < 0 else "",
                          "delta": "без изменений" if d == 0 else ("+" if d > 0 else "−") + logic.fmt(abs(d))}
+    return a, results
+
+
+@app.get("/patients/<int:pid>/print")
+@role_required("doctor")
+def analyses_print(pid):
+    """Печать нескольких анализов за разные даты: каждый на отдельном листе, по порядку дат."""
+    p = own_patient(pid)
+    ids = []
+    for part in request.args.getlist("ids"):
+        for x in part.split(","):
+            if x.strip().isdigit() and int(x) not in ids:
+                ids.append(int(x))
+    items = []
+    for aid in ids[:20]:
+        a, results = load_analysis(p, aid)
+        if a:
+            items.append({"a": a, "results": results, "age": pt.age_text(p["birth"], pt.parse_date(a["taken_on"])),
+                          "dev": sum(1 for r in results if r["status"] != "within")})
+    if not items:
+        return redirect(url_for("patient_page", pid=pid))
+    items.sort(key=lambda i: (i["a"]["taken_on"], i["a"]["id"]))
+    store.audit(g.user["login"], "Открыл печать анализов", f"карта № {p['card']}, анализов: {len(items)}")
+    return render_template("print_multi.html", nav="patients", p=p, items=items, printed=pt.dmy(pt.today().isoformat()))
+
+
+@app.get("/patients/<int:pid>/analyses/<int:aid>")
+@role_required("doctor")
+def analysis_page(pid, aid):
+    p = own_patient(pid)
+    a, results = load_analysis(p, aid)
+    if not a:
+        abort(404)
     child, _ = pt.child_at(p["sex"], p["birth"], a["taken_on"])
     ctx = {"years": child["years"], "months": child["months"], "weeks": child["weeks"], "sex": child["sex"], "pid": pid, "aid": aid,
            "rows": [{"indicator": r["ind"]["id"], "value": r["value"], "lower": r["lower"], "upper": r["upper"]} for r in results]}

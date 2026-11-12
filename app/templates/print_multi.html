@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Ориентир: печать анализов{% endblock %}
+{% block content %}
+<div class="multi">
+<p class="crumbs noprint"><a href="/patients">Пациенты</a> / <a href="/patients/{{ p.id }}">{{ p.full_name }}</a> / Печать анализов</p>
+<div class="head noprint" style="align-items:flex-end">
+<div><h1>Печать анализов: {{ items|length }}</h1>
+<p class="muted" style="font-size:16px;margin:0">Анализы идут по порядку дат, каждый на отдельном листе. Так будет выглядеть печатная форма.</p></div>
+<div class="acts"><button class="primary" type="button" onclick="window.print()">Печать / PDF</button>
+<a class="secondary" href="/patients/{{ p.id }}">← К карточке пациента</a></div>
+</div>
+<details class="card noprint" style="padding:14px 20px" open><summary style="cursor:pointer;font-weight:600">Что напечатать</summary>
+<div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">
+<label><input type="checkbox" id="p_ai" checked> Разбор ИИ (с пометкой «для рассмотрения врачом»)</label>
+<label><input type="checkbox" id="p_name"> ФИО пациента (по умолчанию печатается только номер карты)</label></div></details>
+
+{% for it in items %}
+{% set a = it.a %}
+<div class="printpage">
+<div class="printhead">
+<div class="ph"><b class="phb">Ориентир</b><span>Результат анализа · {{ loop.index }} из {{ items|length }}</span></div>
+<p><b>Карта № {{ p.card }}</b><span class="pname"> · {{ p.full_name }}</span> · {{ 'девочка' if p.sex=='f' else 'мальчик' }} · {{ it.age }}<br>Дата анализа: {{ a.taken_on|dmy }}{% if a.lab %} · {{ a.lab }}{% endif %} · показателей: {{ it.results|length }} · отклонений: {{ it.dev }}</p>
+</div>
+{% with results=it.results %}{% include "_results.html" %}{% endwith %}
+<section class="card ai aibox">
+<h2 style="font-size:20px">Анализ YandexGPT</h2>
+{% if a.ai_text %}<p style="margin:0;white-space:pre-line">{{ a.ai_text }}</p>
+<p class="muted" style="margin:0;font-size:13px">{{ 'Ответ ИИ. Советы по лечению не допускаются.' if a.ai_kind=='ai' else 'Ответ составлен из справочника, а не ИИ.' }}</p>
+{% else %}<p class="muted" style="margin:0">Разбор не получен.</p>{% endif %}
+</section>
+<div class="printfoot">Ответ ИИ дан для рассмотрения врачом и не заменяет клиническое решение. Распечатано: {{ user.login }} · {{ printed }}</div>
+</div>
+{% endfor %}
+</div>
+<script>
+document.getElementById('p_ai').addEventListener('change',e=>document.body.classList.toggle('noai',!e.target.checked));
+document.getElementById('p_name').addEventListener('change',e=>document.body.classList.toggle('showname',e.target.checked));
+</script>
+{% endblock %}

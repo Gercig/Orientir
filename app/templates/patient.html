@@ -52,14 +52,26 @@
 </section>
 
 <section class="card" style="padding:0;gap:0;overflow:hidden">
-<div style="padding:24px 24px 12px"><h2 style="font-size:22px">История анализов</h2><p class="muted" style="margin:4px 0 0;font-size:14px">Нажмите на строку, чтобы открыть анализ. Исправить или удалить его можно на странице анализа.</p></div>
-<div class="tblwrap"><table class="tbl big" style="min-width:560px">
-<tr><th style="padding-left:24px">Дата</th><th>Лаборатория</th><th>Показателей</th><th>Итог</th></tr>
+<div style="padding:24px 24px 12px"><h2 style="font-size:22px">История анализов</h2><p class="muted" style="margin:4px 0 0;font-size:14px">Нажмите на строку, чтобы открыть анализ. Исправить или удалить его можно на странице анализа. Галочки нужны для печати нескольких анализов сразу.</p></div>
+<form method="get" action="/patients/{{ p.id }}/print">
+<div class="noprint" style="padding:0 24px 12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+<button class="secondary" type="submit" id="printsel" disabled>Печать выбранных (<span id="nsel">0</span>)</button>
+<span class="muted" style="font-size:14px">Отметьте галочками анализы за разные даты: каждый напечатается на отдельном листе.</span>
+</div>
+<div class="tblwrap"><table class="tbl big" style="min-width:600px">
+<tr><th style="padding-left:24px;width:44px"><input type="checkbox" id="selall" aria-label="Выбрать все анализы" style="width:20px;height:20px"></th><th>Дата</th><th>Лаборатория</th><th>Показателей</th><th>Итог</th></tr>
 {% for a in history %}
-<tr class="rowlink" onclick="location.href='/patients/{{ p.id }}/analyses/{{ a.id }}'"><td style="padding-left:24px"><a href="/patients/{{ p.id }}/analyses/{{ a.id }}"><b>{{ a.taken_on|dmy }}</b></a></td><td>{{ a.lab or '—' }}</td><td>{{ a.total }}</td>
+<tr class="rowlink" onclick="location.href='/patients/{{ p.id }}/analyses/{{ a.id }}'"><td style="padding-left:24px" onclick="event.stopPropagation()"><input type="checkbox" class="selrow" name="ids" value="{{ a.id }}" aria-label="Выбрать анализ от {{ a.taken_on|dmy }}" style="width:20px;height:20px"></td>
+<td><a href="/patients/{{ p.id }}/analyses/{{ a.id }}"><b>{{ a.taken_on|dmy }}</b></a></td><td>{{ a.lab or '—' }}</td><td>{{ a.total }}</td>
 <td>{% if a.bad %}<span class="bd bad">{{ a.bad }} {{ a.bad|plural('отклонение','отклонения','отклонений') }}</span>{% else %}<span class="bd good">В норме</span>{% endif %}</td></tr>
-{% else %}<tr><td colspan="4" style="padding:24px" class="muted">Анализов {{ 'за выбранный период ' if period!='all' }}нет.</td></tr>{% endfor %}
+{% else %}<tr><td colspan="5" style="padding:24px" class="muted">Анализов {{ 'за выбранный период ' if period!='all' }}нет.</td></tr>{% endfor %}
 </table></div>
+</form>
+<script>
+(function(){const rows=[...document.querySelectorAll('.selrow')],all=document.getElementById('selall'),btn=document.getElementById('printsel'),n=document.getElementById('nsel');
+if(!all)return;function upd(){const k=rows.filter(r=>r.checked).length;n.textContent=k;btn.disabled=!k;all.checked=k>0&&k===rows.length;}
+rows.forEach(r=>r.addEventListener('change',upd));all.addEventListener('change',()=>{rows.forEach(r=>r.checked=all.checked);upd();});upd();})();
+</script>
 </section>
 </div>
 
