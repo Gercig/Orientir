@@ -52,16 +52,13 @@
 </section>
 
 <section class="card" style="padding:0;gap:0;overflow:hidden">
-<div style="padding:24px 24px 12px"><h2 style="font-size:22px">История анализов</h2></div>
+<div style="padding:24px 24px 12px"><h2 style="font-size:22px">История анализов</h2><p class="muted" style="margin:4px 0 0;font-size:14px">Нажмите на строку, чтобы открыть анализ. Исправить или удалить его можно на странице анализа.</p></div>
 <div class="tblwrap"><table class="tbl big" style="min-width:560px">
-<tr><th style="padding-left:24px">Дата</th><th>Лаборатория</th><th>Показателей</th><th>Итог</th><th></th></tr>
+<tr><th style="padding-left:24px">Дата</th><th>Лаборатория</th><th>Показателей</th><th>Итог</th></tr>
 {% for a in history %}
-<tr><td style="padding-left:24px"><b>{{ a.taken_on|dmy }}</b></td><td>{{ a.lab or '—' }}</td><td>{{ a.total }}</td>
-<td>{% if a.bad %}<span class="bd bad">{{ a.bad }} {{ a.bad|plural('отклонение','отклонения','отклонений') }}</span>{% else %}<span class="bd good">В норме</span>{% endif %}</td>
-<td style="text-align:right;padding-right:24px;white-space:nowrap"><a href="/patients/{{ p.id }}/analyses/{{ a.id }}">Открыть</a>
-<a href="/patients/{{ p.id }}/analyses/{{ a.id }}/edit" style="margin-left:14px">Исправить</a>
-<form method="post" action="/patients/{{ p.id }}/analyses/{{ a.id }}/delete" style="display:inline;margin-left:14px" onsubmit="return confirm('Удалить анализ от {{ a.taken_on|dmy }}? Это действие нельзя отменить.')"><button class="linkbtn danger" type="submit">Удалить</button></form></td></tr>
-{% else %}<tr><td colspan="5" style="padding:24px" class="muted">Анализов {{ 'за выбранный период ' if period!='all' }}нет.</td></tr>{% endfor %}
+<tr class="rowlink" onclick="location.href='/patients/{{ p.id }}/analyses/{{ a.id }}'"><td style="padding-left:24px"><a href="/patients/{{ p.id }}/analyses/{{ a.id }}"><b>{{ a.taken_on|dmy }}</b></a></td><td>{{ a.lab or '—' }}</td><td>{{ a.total }}</td>
+<td>{% if a.bad %}<span class="bd bad">{{ a.bad }} {{ a.bad|plural('отклонение','отклонения','отклонений') }}</span>{% else %}<span class="bd good">В норме</span>{% endif %}</td></tr>
+{% else %}<tr><td colspan="4" style="padding:24px" class="muted">Анализов {{ 'за выбранный период ' if period!='all' }}нет.</td></tr>{% endfor %}
 </table></div>
 </section>
 </div>

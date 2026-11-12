@@ -122,3 +122,5 @@ textarea{font-family:inherit;font-size:16px;padding:12px;border:1px solid #8CA0A
  .printfoot{display:block;margin-top:16px;padding-top:8px;border-top:1px solid #D5E0E3;font-size:11px;color:#4A5D66}
  section.card{break-inside:avoid;box-shadow:none}
 }
+
+.rowlink{cursor:pointer}.rowlink:hover td{background:#F1F7F8}.rowlink a{color:inherit;text-decoration:none}.rowlink a:focus-visible{outline:2px solid #0F6E7A;outline-offset:2px}
