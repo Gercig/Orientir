@@ -249,6 +249,23 @@ def save_analysis(user, pid, taken_on, lab, results, ai):
     return aid
 
 
+def analyses_on(pid, taken_on):
+    """Сколько анализов у пациента уже есть на эту дату."""
+    con = store.db()
+    n = con.execute("SELECT COUNT(*) FROM analyses WHERE patient_id=? AND taken_on=?", (pid, taken_on)).fetchone()[0]
+    con.close()
+    return n
+
+
+def delete_analysis(aid, pid):
+    """Удаляет анализ пациента вместе со значениями. Возвращает True, если анализ был."""
+    con = store.db()
+    cur = con.execute("DELETE FROM analyses WHERE id=? AND patient_id=?", (aid, pid))
+    con.commit()
+    con.close()
+    return cur.rowcount > 0
+
+
 def set_ai(aid, ai):
     if not (ai.get("ai") or ai.get("ref")):
         return

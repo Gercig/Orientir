@@ -24,6 +24,11 @@
 <div class="muted" style="display:flex;justify-content:space-between;gap:8px;font-size:13px"><span>Не вводите имена, даты, номера и другие данные пациента.</span><span id="cnt">0 / 200</span></div></div>
 <div id="chat" style="display:flex;flex-direction:column;gap:12px" aria-live="polite"></div>
 </section>
+<section class="card">
+<h2 style="font-size:20px">Ошибка при вводе?</h2>
+<p class="muted" style="margin:0">Если анализ внесён по ошибке или дважды, его можно удалить. Остальные анализы пациента не изменятся.</p>
+<form method="post" action="/patients/{{ p.id }}/analyses/{{ a.id }}/delete" onsubmit="return confirm('Удалить анализ от {{ a.taken_on|dmy }}? Это действие нельзя отменить.')"><button class="secondary danger" type="submit">Удалить этот анализ</button></form>
+</section>
 <footer>Ответы ИИ даны для рассмотрения врачом и не заменяют клиническое решение. В YandexGPT передаются возраст, пол, значения и прошлые значения без дат, имя не передаётся.</footer>
 <script type="application/json" id="ctx">{{ ctx|tojson }}</script>
 <script>

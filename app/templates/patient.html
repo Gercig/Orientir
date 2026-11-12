@@ -9,6 +9,7 @@
 <a class="primary" href="/patients/{{ p.id }}/analyses/new">+ Новый анализ</a>
 </div>
 
+{% if deleted %}<div class="note" role="status" style="background:#E3F1D5;color:#2A5410">Анализ удалён. График обновлён.</div>{% endif %}
 <div class="split">
 <div class="main">
 
@@ -57,7 +58,8 @@
 {% for a in history %}
 <tr><td style="padding-left:24px"><b>{{ a.taken_on|dmy }}</b></td><td>{{ a.lab or '—' }}</td><td>{{ a.total }}</td>
 <td>{% if a.bad %}<span class="bd bad">{{ a.bad }} {{ a.bad|plural('отклонение','отклонения','отклонений') }}</span>{% else %}<span class="bd good">В норме</span>{% endif %}</td>
-<td style="text-align:right;padding-right:24px"><a href="/patients/{{ p.id }}/analyses/{{ a.id }}">Открыть</a></td></tr>
+<td style="text-align:right;padding-right:24px;white-space:nowrap"><a href="/patients/{{ p.id }}/analyses/{{ a.id }}">Открыть</a>
+<form method="post" action="/patients/{{ p.id }}/analyses/{{ a.id }}/delete" style="display:inline;margin-left:14px" onsubmit="return confirm('Удалить анализ от {{ a.taken_on|dmy }}? Это действие нельзя отменить.')"><button class="linkbtn danger" type="submit">Удалить</button></form></td></tr>
 {% else %}<tr><td colspan="5" style="padding:24px" class="muted">Анализов {{ 'за выбранный период ' if period!='all' }}нет.</td></tr>{% endfor %}
 </table></div>
 </section>

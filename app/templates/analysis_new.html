@@ -40,7 +40,8 @@
 <div><button type="button" class="dashed" id="add">+ Добавить показатель</button></div>
 <p class="muted" style="margin:0">Строки без значения пропускаются.</p>
 </section>
-<div class="row"><button class="primary" type="submit">Сохранить и разобрать</button><a class="secondary" href="/patients/{{ p.id }}">Отмена</a></div>
+{% if form.dup %}<input type="hidden" name="confirm_dup" value="1">{% endif %}
+<div class="row"><button class="primary" type="submit" id="savebtn">{{ 'Всё равно сохранить' if form.dup else 'Сохранить и разобрать' }}</button><a class="secondary" href="/patients/{{ p.id }}">Отмена</a></div>
 </div>
 <aside class="side">
 <section class="sidebox"><h2>Что изменится</h2>
@@ -54,6 +55,7 @@
 </aside>
 </div>
 </form>
+<script>document.querySelector('form[method=post]').addEventListener('submit',e=>{const b=document.getElementById('savebtn');if(b.dataset.busy){e.preventDefault();return;}b.dataset.busy='1';b.textContent='Сохраняю…';});</script>
 <script type="application/json" id="prev">{{ prev|tojson }}</script>
 <script>
 const INTERVALS={{ intervals|safe }};

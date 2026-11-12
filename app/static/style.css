@@ -102,3 +102,6 @@ input[type=date]{height:44px;padding:0 12px;border:1px solid #8CA0A8;border-radi
 textarea{font-family:inherit;font-size:16px;padding:12px;border:1px solid #8CA0A8;border-radius:8px;min-height:96px;resize:vertical;width:100%}
 .log{display:flex;flex-direction:column}.log div{display:flex;flex-wrap:wrap;gap:6px 24px;padding:12px 0;border-top:1px solid #E3ECEE}
 .log .t{flex:0 0 160px;color:#4A5D66}.log .u{flex:0 0 140px;font-weight:600}.log .w{flex:1 1 300px;color:#33464E}
+
+.linkbtn.danger{color:#8A3B00;font-size:15px}
+.secondary.danger{border-color:#8A3B00;color:#8A3B00}

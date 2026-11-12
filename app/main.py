@@ -358,7 +358,8 @@ def patient_page(pid):
                            d_from=(start if period == "custom" else request.args.get("from", "")),
                            d_to=(end if period == "custom" else request.args.get("to", "")),
                            history=pt.analyses_of(pid, start, end), latest=allan[0] if allan else None,
-                           saved=request.args.get("saved") == "1")
+                           saved=request.args.get("saved") == "1",
+                           deleted=request.args.get("deleted") == "1")
 
 
 @app.post("/patients/<int:pid>/note")
@@ -406,6 +407,10 @@ def analysis_new(pid):
     errors += errs
     if errors:
         return new_analysis_view(p, form, errors, 400)
+    if pt.analyses_on(pid, on.isoformat()) and f.get("confirm_dup") != "1":
+        form["dup"] = True
+        return new_analysis_view(p, form, [f"На {pt.dmy(on.isoformat())} у этого пациента уже есть анализ. "
+                                           "Если это не случайный повтор, нажмите «Всё равно сохранить»."], 200)
     if logic.rate_limited(request.remote_addr, limit=20):
         return "Слишком много запросов. Подождите минуту.", 429
     history = pt.history_lines(pid, [r["ind"]["id"] for r in results], on.isoformat()) or None
@@ -470,6 +475,18 @@ def analysis_page(pid, aid):
     return render_template("analysis.html", nav="patients", p=p, a=a, results=results, ctx=ctx,
                            age=pt.age_text(p["birth"], pt.parse_date(a["taken_on"])),
                            dev=sum(1 for r in results if r["status"] != "within"), just_saved=request.args.get("saved") == "1")
+
+
+@app.post("/patients/<int:pid>/analyses/<int:aid>/delete")
+@role_required("doctor")
+def analysis_delete(pid, aid):
+    p = own_patient(pid)
+    a, _ = pt.get_analysis(aid, pid)
+    if not a:
+        abort(404)
+    pt.delete_analysis(aid, pid)
+    store.audit(g.user["login"], "Удалил анализ", f"карта № {p['card']}, от {pt.dmy(a['taken_on'])}")
+    return redirect(url_for("patient_page", pid=pid, deleted=1))
 
 
 @app.post("/patients/<int:pid>/analyses/<int:aid>/ai")
