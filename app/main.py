@@ -304,7 +304,10 @@ def patients_view(form=None, err=None, status=200):
     q = request.args.get("q", "").strip()[:60]
     flt = request.args.get("f", "")
     stats = pt.doctor_stats(g.user["id"])
-    return render_template("patients.html", nav="patients", patients=pt.list_patients(g.user["id"], q, flt), q=q, flt=flt,
+    sort = request.args.get("sort", "name")
+    sort = sort if sort in pt.SORTS else "name"
+    plist, counts = pt.list_patients(g.user["id"], q, flt, sort)
+    return render_template("patients.html", nav="patients", patients=plist, counts=counts, sort=sort, q=q, flt=flt,
                            stats=stats, form=form or {"full_name": "", "birth": "", "sex": "", "card": ""},
                            err=err, today=pt.today().isoformat(),
                            min_birth=pt.today().replace(year=pt.today().year - 19).isoformat()), status
@@ -371,12 +374,55 @@ def patient_note(pid):
     return redirect(url_for("patient_page", pid=pid, saved=1))
 
 
-def new_analysis_view(p, form, errors=None, status=200):
-    last = pt.analyses_of(p["id"])
-    prev = pt.previous_values(p["id"], pt.today().isoformat())
+def default_lab():
+    """Лаборатория по умолчанию: при вводе анализа выбрана автоматически."""
+    return "Лаборатория " + (g.user.get("clinic_name") or "ДРКБ")
+
+
+def lab_form(lab_saved=""):
+    """Состояние поля «Лаборатория» для формы: по умолчанию или своё название."""
+    if not lab_saved or lab_saved == default_lab():
+        return {"lab_mode": "default", "lab_other": ""}
+    return {"lab_mode": "other", "lab_other": lab_saved}
+
+
+def lab_from_form(f):
+    if f.get("lab_mode") == "other":
+        return f.get("lab_other", "").strip()[:80]
+    return default_lab()
+
+
+def new_analysis_view(p, form, errors=None, status=200, aid=None, prev_date=None):
+    prev = pt.previous_values(p["id"], prev_date or pt.today().isoformat(), exclude_aid=aid)
     return render_template("analysis_new.html", nav="patients", p=p, form=form, errors=errors or [], today=pt.today().isoformat(),
                            indicators=logic.REF["indicators"], prev={str(k): v for k, v in prev.items()},
+                           lab_default=default_lab(), edit_aid=aid,
                            intervals=json.dumps({i["id"]: i["bins"] for i in logic.REF["indicators"]}, ensure_ascii=False)), status
+
+
+def read_analysis_form(f):
+    rows = [{"indicator": a, "value": b, "lower": c, "upper": d}
+            for a, b, c, d in zip(f.getlist("indicator"), f.getlist("value"), f.getlist("lower"), f.getlist("upper"))]
+    form = {"taken_on": f.get("taken_on", ""), "lab": lab_from_form(f), "lab_mode": "other" if f.get("lab_mode") == "other" else "default",
+            "lab_other": f.get("lab_other", "").strip()[:80],
+            "rows": rows or [{"indicator": "", "value": "", "lower": "", "upper": ""}]}
+    return form, rows
+
+
+def check_analysis_form(p, form, rows):
+    """Общая проверка формы нового и исправляемого анализа. Возвращает (ошибки, дата, ребёнок, результаты)."""
+    on = pt.parse_date(form["taken_on"])
+    if not on or on > pt.today() or on < pt.parse_date(p["birth"]):
+        return ["Дата анализа: не раньше рождения и не позже сегодняшнего дня."], None, None, None
+    errors = []
+    filled = [r for r in rows if r["value"].strip()]
+    ids = [r["indicator"] for r in filled]
+    if len(set(ids)) != len(ids):
+        errors.append("Один показатель указан дважды.")
+    child, _ = pt.child_at(p["sex"], p["birth"], on.isoformat())
+    errs, child, results = logic.validate_and_evaluate({**child, "rows": filled})
+    errors += errs
+    return errors, on, child, results
 
 
 @app.route("/patients/<int:pid>/analyses/new", methods=["GET", "POST"])
@@ -387,27 +433,12 @@ def analysis_new(pid):
         ids = [i["id"] for i in pt.indicators_of(pid)]
         ids = ids[:12] or [""]
         rows = [{"indicator": i, "value": "", "lower": "", "upper": ""} for i in ids]
-        return new_analysis_view(p, {"taken_on": pt.today().isoformat(), "lab": "", "rows": rows})
-    f = request.form
-    rows = [{"indicator": a, "value": b, "lower": c, "upper": d}
-            for a, b, c, d in zip(f.getlist("indicator"), f.getlist("value"), f.getlist("lower"), f.getlist("upper"))]
-    form = {"taken_on": f.get("taken_on", ""), "lab": f.get("lab", "").strip()[:80], "rows": rows or [{"indicator": "", "value": "", "lower": "", "upper": ""}]}
-    errors = []
-    on = pt.parse_date(form["taken_on"])
-    if not on or on > pt.today() or on < pt.parse_date(p["birth"]):
-        errors.append("Дата анализа: не раньше рождения и не позже сегодняшнего дня.")
-        return new_analysis_view(p, form, errors, 400)
-    filled = [r for r in rows if r["value"].strip() or r["indicator"]]
-    filled = [r for r in filled if r["value"].strip()]
-    ids = [r["indicator"] for r in filled]
-    if len(set(ids)) != len(ids):
-        errors.append("Один показатель указан дважды.")
-    child, _ = pt.child_at(p["sex"], p["birth"], on.isoformat())
-    errs, child, results = logic.validate_and_evaluate({**child, "rows": filled})
-    errors += errs
+        return new_analysis_view(p, {"taken_on": pt.today().isoformat(), "lab": "", **lab_form(), "rows": rows})
+    form, rows = read_analysis_form(request.form)
+    errors, on, child, results = check_analysis_form(p, form, rows)
     if errors:
         return new_analysis_view(p, form, errors, 400)
-    if pt.analyses_on(pid, on.isoformat()) and f.get("confirm_dup") != "1":
+    if pt.analyses_on(pid, on.isoformat()) and request.form.get("confirm_dup") != "1":
         form["dup"] = True
         return new_analysis_view(p, form, [f"На {pt.dmy(on.isoformat())} у этого пациента уже есть анализ. "
                                            "Если это не случайный повтор, нажмите «Всё равно сохранить»."], 200)
@@ -418,6 +449,36 @@ def analysis_new(pid):
     aid = pt.save_analysis(g.user, pid, on.isoformat(), form["lab"], results, answer)
     store.audit(g.user["login"], "Внёс анализ", f"карта № {p['card']}, от {pt.dmy(on.isoformat())}")
     return redirect(url_for("analysis_page", pid=pid, aid=aid, saved=1))
+
+
+@app.route("/patients/<int:pid>/analyses/<int:aid>/edit", methods=["GET", "POST"])
+@role_required("doctor")
+def analysis_edit(pid, aid):
+    p = own_patient(pid)
+    a, old_results = pt.get_analysis(aid, pid, p["sex"])
+    if not a:
+        abort(404)
+    if request.method == "GET":
+        rows = [{"indicator": r["ind"]["id"], "value": r["value"], "lower": r["lower"], "upper": r["upper"]} for r in old_results]
+        return new_analysis_view(p, {"taken_on": a["taken_on"], "lab": a["lab"], **lab_form(a["lab"]), "rows": rows},
+                                 aid=aid, prev_date=a["taken_on"])
+    form, rows = read_analysis_form(request.form)
+    errors, on, child, results = check_analysis_form(p, form, rows)
+    if not errors and not results:
+        errors = ["Укажите хотя бы один показатель со значением."]
+    if errors:
+        return new_analysis_view(p, form, errors, 400, aid=aid, prev_date=on.isoformat() if on else a["taken_on"])
+    changed = pt.values_signature(results) != pt.values_signature(old_results)
+    answer = None
+    if changed:
+        if logic.rate_limited(request.remote_addr, limit=20):
+            return "Слишком много запросов. Подождите минуту.", 429
+        history = pt.history_lines(pid, [r["ind"]["id"] for r in results], on.isoformat(), exclude_aid=aid) or None
+        answer = logic.ask_ai(child, results, None, history)
+    pt.update_analysis(aid, pid, on.isoformat(), form["lab"], results, answer)
+    store.audit(g.user["login"], "Изменил анализ", f"карта № {p['card']}, от {pt.dmy(on.isoformat())}"
+                + (", разбор обновлён" if changed else ""))
+    return redirect(url_for("analysis_page", pid=pid, aid=aid, edited=1, redo=1 if changed else 0))
 
 
 @app.post("/patients/<int:pid>/analyses/parse")
@@ -474,7 +535,8 @@ def analysis_page(pid, aid):
     store.audit(g.user["login"], "Открыл анализ", f"карта № {p['card']}, от {pt.dmy(a['taken_on'])}")
     return render_template("analysis.html", nav="patients", p=p, a=a, results=results, ctx=ctx,
                            age=pt.age_text(p["birth"], pt.parse_date(a["taken_on"])),
-                           dev=sum(1 for r in results if r["status"] != "within"), just_saved=request.args.get("saved") == "1")
+                           dev=sum(1 for r in results if r["status"] != "within"), just_saved=request.args.get("saved") == "1",
+                           edited=request.args.get("edited") == "1", redo=request.args.get("redo") == "1", printed=pt.dmy(pt.today().isoformat()))
 
 
 @app.post("/patients/<int:pid>/analyses/<int:aid>/delete")

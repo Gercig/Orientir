@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% block title %}Ориентир: новый анализ{% endblock %}
+{% block title %}Ориентир: {{ 'исправление анализа' if edit_aid else 'новый анализ' }}{% endblock %}
 {% block mainclass %}wide{% endblock %}
 {% block content %}
-<p class="crumbs"><a href="/patients">Пациенты</a> / <a href="/patients/{{ p.id }}">{{ p.full_name }}</a> / Новый анализ</p>
-<div><h1 style="font-size:36px">Новый анализ</h1>
+<p class="crumbs"><a href="/patients">Пациенты</a> / <a href="/patients/{{ p.id }}">{{ p.full_name }}</a> / {{ 'Исправление анализа' if edit_aid else 'Новый анализ' }}</p>
+<div><h1 style="font-size:36px">{{ 'Исправление анализа от ' ~ (form.taken_on|dmy) if edit_aid else 'Новый анализ' }}</h1>
 <p class="muted" style="font-size:17px;margin:0">{{ p.full_name }} · {{ 'девочка' if p.sex=='f' else 'мальчик' }} · {{ p.age }} · карта № {{ p.card }}</p></div>
 {% if errors %}<div class="errors" role="alert"><b>Проверьте ввод:</b><ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div>{% endif %}
 <form method="post" autocomplete="off" style="display:contents">
@@ -13,7 +13,11 @@
 <h2>1. Дата и источник</h2>
 <div class="row">
 <div class="field"><label for="taken">Дата анализа</label><input id="taken" name="taken_on" type="date" min="{{ p.birth }}" max="{{ today }}" value="{{ form.taken_on }}" required></div>
-<div class="field grow2"><label for="lab">Лаборатория</label><input id="lab" name="lab" type="text" maxlength="80" value="{{ form.lab }}"></div>
+<div class="field grow2" id="labbox"><label for="labsel">Лаборатория</label>
+<input type="hidden" name="lab_mode" id="labmode" value="{{ form.lab_mode }}">
+<select id="labsel" {{ 'hidden' if form.lab_mode=='other' }}><option value="default" selected>{{ lab_default }}</option><option value="other">Другая лаборатория (вписать)…</option></select>
+<div id="labother" {{ 'hidden' if form.lab_mode!='other' }}><input id="labtext" name="lab_other" type="text" maxlength="80" placeholder="Название лаборатории" value="{{ form.lab_other }}" aria-label="Название лаборатории">
+<a href="#" id="labback" style="font-size:14px">← Вернуть «{{ lab_default }}»</a></div></div>
 </div>
 <div style="border:2px dashed #9DBFC5;border-radius:12px;padding:20px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;background:#F4F7F8">
 <div><b>Загрузить бланк анализа</b><div class="muted">Фото или PDF до 5 МБ: показатели распознаются и подставляются в таблицу ниже. Проверьте их перед сохранением.</div><div id="ocrmsg" class="muted" role="status" style="margin-top:6px;font-weight:600"></div></div>
@@ -41,11 +45,13 @@
 <p class="muted" style="margin:0">Строки без значения пропускаются.</p>
 </section>
 {% if form.dup %}<input type="hidden" name="confirm_dup" value="1">{% endif %}
-<div class="row"><button class="primary" type="submit" id="savebtn">{{ 'Всё равно сохранить' if form.dup else 'Сохранить и разобрать' }}</button><a class="secondary" href="/patients/{{ p.id }}">Отмена</a></div>
+{% if edit_aid %}<div class="note" id="redo" role="status" style="background:#E3F1D5;color:#2A5410" hidden><b>Значения изменены.</b> После сохранения разбор YandexGPT будет составлен заново автоматически, прежний заменится.</div>{% endif %}
+<div class="row"><button class="primary" type="submit" id="savebtn">{{ 'Всё равно сохранить' if form.dup else 'Сохранить и обновить разбор' if edit_aid else 'Сохранить и разобрать' }}</button><a class="secondary" href="{{ '/patients/%d/analyses/%d'|format(p.id, edit_aid) if edit_aid else '/patients/%d'|format(p.id) }}">Отмена</a></div>
 </div>
 <aside class="side">
 <section class="sidebox"><h2>Что изменится</h2>
-<p>После сохранения анализ появится в истории пациента, график динамики обновится, а YandexGPT получит прошлые значения и опишет динамику.</p>
+{% if edit_aid %}<p>Анализ будет изменён в истории пациента, график динамики обновится. Если изменятся значения или интервалы, разбор YandexGPT составится заново автоматически. Если только дата или лаборатория, прежний разбор останется.</p>
+{% else %}<p>После сохранения анализ появится в истории пациента, график динамики обновится, а YandexGPT получит прошлые значения и опишет динамику.</p>{% endif %}
 <p style="font-size:14px;opacity:.85">В запрос уходят возраст, пол и значения. Имя, карта и даты не передаются.</p></section>
 <section class="card"><h2>Подсказки</h2>
 <ul style="margin:0;padding-left:20px;line-height:1.5;display:flex;flex-direction:column;gap:8px">
@@ -55,6 +61,20 @@
 </aside>
 </div>
 </form>
+<script>
+(function(){const sel=document.getElementById('labsel'),box=document.getElementById('labother'),mode=document.getElementById('labmode'),txt=document.getElementById('labtext');
+function show(o){mode.value=o?'other':'default';sel.hidden=o;box.hidden=!o;if(o)txt.focus();else sel.value='default';}
+sel.addEventListener('change',()=>show(sel.value==='other'));
+document.getElementById('labback').addEventListener('click',e=>{e.preventDefault();show(false);});})();
+{% if edit_aid %}
+(function(){const orig={{ form.rows|tojson }};const rowsEl=document.getElementById('rows'),redo=document.getElementById('redo');
+function check(){let ch=false;[...rowsEl.children].forEach((r,i)=>{const o=orig[i];const v=r.querySelector('[name=value]'),lo=r.querySelector('[name=lower]'),up=r.querySelector('[name=upper]'),s=r.querySelector('select');
+ const same=o&&String(s.value)===String(o.indicator)&&v.value.trim()===String(o.value)&&lo.value.trim()===String(o.lower)&&up.value.trim()===String(o.upper);
+ v.style.background=same?'':'#FFF7E6';v.style.borderColor=same?'':'#C27A00';if(!same)ch=true;});
+ if(rowsEl.children.length!==orig.length)ch=true;redo.hidden=!ch;}
+rowsEl.addEventListener('input',check);rowsEl.addEventListener('change',check);rowsEl.addEventListener('click',()=>setTimeout(check,0));document.getElementById('add').addEventListener('click',()=>setTimeout(check,0));check();})();
+{% endif %}
+</script>
 <script>document.querySelector('form[method=post]').addEventListener('submit',e=>{const b=document.getElementById('savebtn');if(b.dataset.busy){e.preventDefault();return;}b.dataset.busy='1';b.textContent='Сохраняю…';});</script>
 <script type="application/json" id="prev">{{ prev|tojson }}</script>
 <script>

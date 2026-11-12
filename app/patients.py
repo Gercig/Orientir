@@ -120,27 +120,60 @@ def deviations(con, aid):
     return r["n"], int(r["bad"])
 
 
-def list_patients(doctor_id, q="", flt=""):
+OLD_DAYS = 92  # «давно не было анализов»: больше трёх месяцев
+SORTS = ("name", "attention", "last", "age")
+
+
+def list_patients(doctor_id, q="", flt="", sort="name"):
+    """Возвращает (список пациентов по поиску, фильтру и сортировке, счётчики для кнопок фильтров)."""
     con = store.db()
     rows = [dict(r) for r in con.execute(
         "SELECT p.*, (SELECT a.id FROM analyses a WHERE a.patient_id=p.id ORDER BY a.taken_on DESC, a.id DESC LIMIT 1) AS last_id, "
         "(SELECT a.taken_on FROM analyses a WHERE a.patient_id=p.id ORDER BY a.taken_on DESC, a.id DESC LIMIT 1) AS last_date "
         "FROM patients p WHERE p.doctor_id=? ORDER BY p.full_name", (doctor_id,))]
     week_ago = (today() - timedelta(days=7)).isoformat()
+    old_before = (today() - timedelta(days=OLD_DAYS)).isoformat()
     q = (q or "").strip().casefold()
+    counts = {"all": len(rows), "attention": 0, "new": 0, "old": 0, "none": 0}
     out = []
     for r in rows:
         r["total"], r["bad"] = deviations(con, r["last_id"]) if r["last_id"] else (0, 0)
         r["age"] = age_text(r["birth"])
+        r["is_old"] = bool(r["last_date"] and r["last_date"] < old_before)
+        if r["last_date"]:
+            r["ago"] = days_ago_text((today() - parse_date(r["last_date"])).days)
+        counts["attention"] += 1 if r["bad"] else 0
+        counts["new"] += 1 if (r["last_date"] and r["last_date"] >= week_ago) else 0
+        counts["old"] += 1 if r["is_old"] else 0
+        counts["none"] += 0 if r["last_id"] else 1
         if q and q not in r["full_name"].casefold() and q not in r["card"]:
             continue
         if flt == "attention" and not r["bad"]:
             continue
         if flt == "new" and not (r["last_date"] and r["last_date"] >= week_ago):
             continue
+        if flt == "old" and not r["is_old"]:
+            continue
+        if flt == "none" and r["last_id"]:
+            continue
         out.append(r)
     con.close()
-    return out
+    if sort == "attention":
+        out.sort(key=lambda r: (-r["bad"], r["full_name"]))
+    elif sort == "last":
+        out.sort(key=lambda r: r["last_date"] or "", reverse=True)
+    elif sort == "age":
+        out.sort(key=lambda r: r["birth"], reverse=True)
+    return out, counts
+
+
+def days_ago_text(d):
+    if d <= 0:
+        return "сегодня"
+    if d < 31:
+        return f"{d} дн. назад"
+    m = d // 30
+    return f"{m} мес. назад"
 
 
 def doctor_stats(doctor_id):
@@ -255,6 +288,29 @@ def analyses_on(pid, taken_on):
     n = con.execute("SELECT COUNT(*) FROM analyses WHERE patient_id=? AND taken_on=?", (pid, taken_on)).fetchone()[0]
     con.close()
     return n
+
+
+def update_analysis(aid, pid, taken_on, lab, results, ai=None):
+    """Меняет дату, лабораторию и значения анализа. ai: новый разбор или None (оставить прежний)."""
+    con = store.db()
+    con.execute("UPDATE analyses SET taken_on=?, lab=? WHERE id=? AND patient_id=?", (taken_on, lab, aid, pid))
+    con.execute("DELETE FROM analysis_values WHERE analysis_id=?", (aid,))
+    for r in results:
+        con.execute("INSERT INTO analysis_values(analysis_id,ind_id,value,lower,upper) VALUES(?,?,?,?,?)",
+                    (aid, r["ind"]["id"], logic.parse_num(r["value"]), logic.parse_num(r["lower"]), logic.parse_num(r["upper"])))
+    if ai is not None:
+        if ai.get("ai") or ai.get("ref"):
+            con.execute("UPDATE analyses SET ai_text=?, ai_kind=? WHERE id=?",
+                        (ai["text"], "ai" if ai.get("ai") else "ref", aid))
+        else:
+            con.execute("UPDATE analyses SET ai_text=NULL, ai_kind=NULL WHERE id=?", (aid,))
+    con.commit()
+    con.close()
+
+
+def values_signature(results):
+    """Набор (показатель, значение, интервал) для сравнения «менялись ли значения»."""
+    return sorted((r["ind"]["id"], logic.parse_num(r["value"]), logic.parse_num(r["lower"]), logic.parse_num(r["upper"])) for r in results)
 
 
 def delete_analysis(aid, pid):

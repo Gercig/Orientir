@@ -105,3 +105,20 @@ textarea{font-family:inherit;font-size:16px;padding:12px;border:1px solid #8CA0A
 
 .linkbtn.danger{color:#8A3B00;font-size:15px}
 .secondary.danger{border-color:#8A3B00;color:#8A3B00}
+
+.printhead,.printfoot{display:none}
+.pill .cnt{display:inline-block;min-width:20px;margin-left:6px;padding:0 7px;border-radius:10px;background:#E3F1F2;color:#0A5560;font-size:13px;text-align:center}
+.pill.on .cnt{background:#fff;color:#0A5560}
+@media print{
+ header.top,.noprint,footer,.acts{display:none!important}
+ body{background:#fff}
+ main{max-width:none;padding:0}
+ .printhead{display:block;border-bottom:2px solid #0F6E7A;margin-bottom:12px}
+ .printhead .ph{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+ .printhead .phb{font-family:Lora,serif;font-size:22px;color:#0F6E7A}
+ .pname{display:none}
+ body.showname .pname{display:inline}
+ body.noai #aibox{display:none}
+ .printfoot{display:block;margin-top:16px;padding-top:8px;border-top:1px solid #D5E0E3;font-size:11px;color:#4A5D66}
+ section.card{break-inside:avoid;box-shadow:none}
+}

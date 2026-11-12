@@ -2,34 +2,52 @@
 {% block title %}Ориентир: анализ {{ a.taken_on|dmy }}{% endblock %}
 {% block content %}
 <p class="crumbs"><a href="/patients">Пациенты</a> / <a href="/patients/{{ p.id }}">{{ p.full_name }}</a> / Анализ от {{ a.taken_on|dmy }}</p>
-<div class="head" style="align-items:flex-end">
+<div class="printhead">
+<div class="ph"><b class="phb">Ориентир</b><span>Результат анализа</span></div>
+<p><b>Карта № {{ p.card }}</b><span class="pname"> · {{ p.full_name }}</span> · {{ 'девочка' if p.sex=='f' else 'мальчик' }} · {{ age }}<br>Дата анализа: {{ a.taken_on|dmy }}{% if a.lab %} · {{ a.lab }}{% endif %}</p>
+</div>
+<div class="head noprint" style="align-items:flex-end">
 <div><h1>Анализ от {{ a.taken_on|dmy }}</h1>
 <p class="muted" style="font-size:16px;margin:0">{{ p.full_name }} · {{ age }} · {{ a.lab or 'лаборатория не указана' }} · показателей: {{ results|length }} · отклонений: {{ dev }}</p></div>
-<a class="secondary" href="/patients/{{ p.id }}">← К карточке пациента</a>
+<div class="acts">
+<button class="primary" type="button" onclick="window.print()">Печать / PDF</button>
+<a class="secondary" href="/patients/{{ p.id }}/analyses/{{ a.id }}/edit">Исправить</a>
+<a class="secondary" href="/patients/{{ p.id }}">← К карточке пациента</a></div>
 </div>
+<details class="card noprint" style="padding:14px 20px"><summary style="cursor:pointer;font-weight:600">Что напечатать</summary>
+<div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">
+<label><input type="checkbox" id="p_ai" checked> Разбор ИИ (с пометкой «для рассмотрения врачом»)</label>
+<label><input type="checkbox" id="p_name"> ФИО пациента (по умолчанию печатается только номер карты)</label></div>
+<p class="muted" style="margin:10px 0 0;font-size:14px">Откроется окно печати браузера: можно распечатать лист или сохранить его как PDF.</p></details>
+{% if edited %}<div class="note noprint" role="status" style="background:#E3F1D5;color:#2A5410">Анализ изменён.{% if redo %} Разбор YandexGPT составлен заново.{% endif %}</div>{% endif %}
 {% if just_saved %}<div class="note" role="status" style="background:#E3F1D5;color:#2A5410">Анализ сохранён. График динамики обновлён.</div>{% endif %}
 {% include "_results.html" %}
-<section class="card ai">
+<section class="card ai" id="aibox">
 <h2 style="font-size:20px">Анализ YandexGPT</h2>
 {% if a.ai_text %}
 <p style="margin:0;white-space:pre-line">{{ a.ai_text }}</p>
 <p class="muted" style="margin:0;font-size:13px">{{ 'Ответ ИИ. Советы по лечению не допускаются.' if a.ai_kind=='ai' else 'Ответ составлен из справочника, а не ИИ.' }}</p>
 {% else %}<p class="muted" style="margin:0">Разбор ещё не получен.</p>{% endif %}
-<form method="post" action="/patients/{{ p.id }}/analyses/{{ a.id }}/ai"><button class="secondary" type="submit">{{ 'Разобрать заново' if a.ai_text else 'Получить разбор' }}</button></form>
+<form class="noprint" method="post" action="/patients/{{ p.id }}/analyses/{{ a.id }}/ai"><button class="secondary" type="submit">{{ 'Разобрать заново' if a.ai_text else 'Получить разбор' }}</button></form>
 </section>
-<section class="card ai">
+<section class="card ai noprint">
 <h2 style="font-size:20px">Задать свой вопрос</h2>
 <div class="field"><label for="q">Вопрос к YandexGPT по этому анализу</label>
 <div class="qbox"><input id="q" type="text" maxlength="200" placeholder="Например: на что обратить внимание при повторном анализе?"><button type="button" class="ask" id="send">Спросить</button></div>
 <div class="muted" style="display:flex;justify-content:space-between;gap:8px;font-size:13px"><span>Не вводите имена, даты, номера и другие данные пациента.</span><span id="cnt">0 / 200</span></div></div>
 <div id="chat" style="display:flex;flex-direction:column;gap:12px" aria-live="polite"></div>
 </section>
-<section class="card">
+<section class="card noprint">
 <h2 style="font-size:20px">Ошибка при вводе?</h2>
-<p class="muted" style="margin:0">Если анализ внесён по ошибке или дважды, его можно удалить. Остальные анализы пациента не изменятся.</p>
+<p class="muted" style="margin:0">Значения можно исправить кнопкой «Исправить». Если анализ внесён по ошибке или дважды, его можно удалить. Остальные анализы пациента не изменятся.</p>
 <form method="post" action="/patients/{{ p.id }}/analyses/{{ a.id }}/delete" onsubmit="return confirm('Удалить анализ от {{ a.taken_on|dmy }}? Это действие нельзя отменить.')"><button class="secondary danger" type="submit">Удалить этот анализ</button></form>
 </section>
-<footer>Ответы ИИ даны для рассмотрения врачом и не заменяют клиническое решение. В YandexGPT передаются возраст, пол, значения и прошлые значения без дат, имя не передаётся.</footer>
+<div class="printfoot">Ответ ИИ дан для рассмотрения врачом и не заменяет клиническое решение. Распечатано: {{ user.login }} · {{ printed }}</div>
+<footer class="noprint">Ответы ИИ даны для рассмотрения врачом и не заменяют клиническое решение. В YandexGPT передаются возраст, пол, значения и прошлые значения без дат, имя не передаётся.</footer>
+<script>
+document.getElementById('p_ai').addEventListener('change',e=>document.body.classList.toggle('noai',!e.target.checked));
+document.getElementById('p_name').addEventListener('change',e=>document.body.classList.toggle('showname',e.target.checked));
+</script>
 <script type="application/json" id="ctx">{{ ctx|tojson }}</script>
 <script>
 const ctx=JSON.parse(document.getElementById('ctx').textContent);

@@ -31,11 +31,20 @@
 
 <section class="card" style="padding:0;gap:0;overflow:hidden">
 <form method="get" action="/patients" class="row" style="padding:20px 24px;border-bottom:1px solid #D5E0E3">
-<div class="field" style="flex:1 1 280px"><label for="q">Поиск по фамилии или номеру карты</label><input id="q" name="q" type="text" value="{{ q }}" placeholder="Например: Соколова или 001004"></div>
-<div class="pills">
-<button class="pill {{ 'on' if not flt }}" name="f" value="" type="submit">Все</button>
-<button class="pill {{ 'on' if flt=='attention' }}" name="f" value="attention" type="submit">Требуют внимания</button>
-<button class="pill {{ 'on' if flt=='new' }}" name="f" value="new" type="submit">Новые анализы</button>
+<div class="field" style="flex:1 1 280px"><label for="q">Поиск по ФИО или номеру карты</label><input id="q" name="q" type="text" value="{{ q }}" placeholder="Например: Соколова или 001004"></div>
+<div class="field" style="flex:0 0 260px"><label for="sort">Сортировка</label>
+<select id="sort" name="sort" onchange="var k=document.getElementById('fkeep');k.disabled=false;this.form.submit()">
+<option value="name" {{ 'selected' if sort=='name' }}>По ФИО</option>
+<option value="attention" {{ 'selected' if sort=='attention' }}>Сначала с отклонениями</option>
+<option value="last" {{ 'selected' if sort=='last' }}>По дате последнего анализа</option>
+<option value="age" {{ 'selected' if sort=='age' }}>По возрасту (сначала младшие)</option></select></div>
+<input type="hidden" name="f" value="{{ flt }}" id="fkeep" disabled>
+<div class="pills" style="flex-basis:100%">
+<button class="pill {{ 'on' if not flt }}" name="f" value="" type="submit">Все <span class="cnt">{{ counts.all }}</span></button>
+<button class="pill {{ 'on' if flt=='attention' }}" name="f" value="attention" type="submit">Есть отклонения в последнем анализе <span class="cnt">{{ counts.attention }}</span></button>
+<button class="pill {{ 'on' if flt=='old' }}" name="f" value="old" type="submit">Давно не было анализов (старше 3 мес.) <span class="cnt">{{ counts.old }}</span></button>
+<button class="pill {{ 'on' if flt=='new' }}" name="f" value="new" type="submit">Новые анализы (за 7 дней) <span class="cnt">{{ counts.new }}</span></button>
+<button class="pill {{ 'on' if flt=='none' }}" name="f" value="none" type="submit">Без анализов <span class="cnt">{{ counts.none }}</span></button>
 </div>
 </form>
 <div class="tblwrap">
@@ -44,8 +53,8 @@
 {% for p in patients %}
 <tr><td style="padding-left:24px"><a href="/patients/{{ p.id }}">{{ p.full_name }}</a><div class="muted">{{ 'Девочка' if p.sex=='f' else 'Мальчик' }}</div></td>
 <td>{{ p.card }}</td><td>{{ p.age }}</td>
-<td>{{ p.last_date|dmy if p.last_date else '—' }}</td>
-<td>{% if not p.last_id %}<span class="bd off">Нет анализов</span>{% elif p.bad %}<span class="bd bad">{{ p.bad }} {{ p.bad|plural('отклонение','отклонения','отклонений') }}</span>{% else %}<span class="bd good">В норме</span>{% endif %}</td></tr>
+<td>{{ p.last_date|dmy if p.last_date else '—' }}{% if p.last_date %}<div class="muted" style="font-size:13px{{ ';color:#134B87;font-weight:600' if p.is_old }}">{{ p.ago }}{{ ' · пора повторить' if p.is_old }}</div>{% endif %}</td>
+<td>{% if not p.last_id %}<span class="bd off">Нет анализов</span>{% elif p.is_old and not p.bad %}<span class="bd off">Давно не было</span>{% elif p.bad %}<span class="bd bad">{{ p.bad }} {{ p.bad|plural('отклонение','отклонения','отклонений') }}</span>{% else %}<span class="bd good">В норме</span>{% endif %}</td></tr>
 {% else %}
 <tr><td colspan="5" style="padding:24px" class="muted">{% if q or flt %}Никого не найдено. Измените поиск или фильтр.{% else %}Пациентов пока нет. Добавьте первого выше.{% endif %}</td></tr>
 {% endfor %}
