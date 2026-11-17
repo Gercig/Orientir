@@ -100,6 +100,50 @@ def add_patient(user, full_name, sex, birth_iso, card=""):
         con.close()
 
 
+def first_analysis_date(pid):
+    con = store.db()
+    r = con.execute("SELECT MIN(taken_on) FROM analyses WHERE patient_id=?", (pid,)).fetchone()[0]
+    con.close()
+    return r
+
+
+def update_patient(pid, full_name, sex, birth_iso, card):
+    """Меняет данные пациента. Возвращает текст ошибки или None."""
+    con = store.db()
+    try:
+        con.execute("UPDATE patients SET full_name=?, sex=?, birth=?, card=? WHERE id=?",
+                    (full_name, sex, birth_iso, card, pid))
+        con.commit()
+        return None
+    except sqlite3.IntegrityError:
+        return "Пациент с таким номером карты уже есть"
+    finally:
+        con.close()
+
+
+def recalc_intervals(pid, sex, birth_iso):
+    """Пересчитывает интервалы во всех анализах пациента по новому полу и возрасту.
+    В анализах, где интервал изменился, сбрасывает разбор ИИ (он написан для прежних интервалов).
+    Возвращает число изменённых анализов."""
+    con = store.db()
+    changed = 0
+    for a in con.execute("SELECT id, taken_on FROM analyses WHERE patient_id=?", (pid,)).fetchall():
+        _, months = child_at(sex, birth_iso, a["taken_on"])
+        touched = False
+        for v in con.execute("SELECT ind_id, lower, upper FROM analysis_values WHERE analysis_id=?", (a["id"],)).fetchall():
+            ind = logic.INDICATORS.get(v["ind_id"])
+            iv = interval_for(ind, sex, months) if ind else None
+            if iv and (abs((v["lower"] or 0) - iv[0]) > 1e-9 or abs((v["upper"] or 0) - iv[1]) > 1e-9):
+                con.execute("UPDATE analysis_values SET lower=?, upper=? WHERE analysis_id=? AND ind_id=?", (iv[0], iv[1], a["id"], v["ind_id"]))
+                touched = True
+        if touched:
+            con.execute("UPDATE analyses SET ai_text=NULL, ai_kind=NULL WHERE id=?", (a["id"],))
+            changed += 1
+    con.commit()
+    con.close()
+    return changed
+
+
 def get_patient(pid, doctor_id):
     con = store.db()
     row = con.execute("SELECT * FROM patients WHERE id=? AND doctor_id=?", (pid, doctor_id)).fetchone()

@@ -6,8 +6,10 @@
 <div class="head" style="align-items:flex-end">
 <div><h1 style="font-size:36px">{{ p.full_name }}</h1>
 <p class="muted" style="font-size:17px;margin:0">{{ 'Девочка' if p.sex=='f' else 'Мальчик' }} · {{ p.age }} · карта № {{ p.card }} · дата рождения {{ p.birth|dmy }}</p></div>
-<a class="primary" href="/patients/{{ p.id }}/analyses/new">+ Новый анализ</a>
+<div class="acts" style="display:flex;gap:12px;flex-wrap:wrap"><a class="secondary" href="/patients/{{ p.id }}/edit">Изменить данные</a>
+<a class="primary" href="/patients/{{ p.id }}/analyses/new">+ Новый анализ</a></div>
 </div>
+{% if pedited %}<div class="note" role="status" style="background:#E3F1D5;color:#2A5410">Данные пациента изменены.{% if recalc %} Интервалы пересчитаны в анализах: {{ recalc }}. Разборы ИИ в них сброшены: откройте анализ и нажмите «Получить разбор».{% endif %}</div>{% endif %}
 
 {% if deleted %}<div class="note" role="status" style="background:#E3F1D5;color:#2A5410">Анализ удалён. График обновлён.</div>{% endif %}
 <div class="split">

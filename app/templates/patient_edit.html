@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Ориентир: изменение данных пациента{% endblock %}
+{% block content %}
+<p class="crumbs"><a href="/patients">Пациенты</a> / <a href="/patients/{{ p.id }}">{{ p.full_name }}</a> / Изменение данных</p>
+<div><h1 style="font-size:36px">Изменение данных пациента</h1>
+<p class="muted" style="font-size:17px;margin:0">Сейчас: {{ p.full_name }} · {{ 'девочка' if p.sex=='f' else 'мальчик' }} · {{ p.age }} · карта № {{ p.card }}</p></div>
+{% if errors %}<div class="errors" role="alert"><b>Проверьте ввод:</b><ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul></div>{% endif %}
+<form method="post" class="card">
+<div class="row">
+<div class="field grow2"><label for="fn">ФИО</label><input id="fn" name="full_name" type="text" maxlength="120" value="{{ form.full_name }}" required></div>
+<div class="field"><label for="bd">Дата рождения</label><input id="bd" name="birth" type="date" min="{{ min_birth }}" max="{{ first or today }}" value="{{ form.birth }}" required></div>
+<fieldset><legend>Пол</legend><div class="radios">
+<label><input type="radio" name="sex" value="f" {{ 'checked' if form.sex=='f' }} required> Девочка</label>
+<label><input type="radio" name="sex" value="m" {{ 'checked' if form.sex=='m' }}> Мальчик</label></div></fieldset>
+<div class="field"><label for="cd">№ карты</label><input id="cd" name="card" type="text" maxlength="20" value="{{ form.card }}" required></div>
+</div>
+{% if first %}
+<div class="note" style="background:#FFF7E6;border:1px solid #E7C98A">
+<label style="display:flex;gap:12px;align-items:flex-start;font-size:16px;line-height:1.5"><input type="checkbox" name="recalc" value="1" {{ 'checked' if form.recalc }} style="width:22px;height:22px;margin-top:2px">
+<span><b>Пересчитать интервалы в уже внесённых анализах</b> по новым полу и дате рождения. Это нужно, если пол или возраст были указаны неверно. Интервалы, которые вы меняли вручную или взяли из бланка, тоже заменятся справочными, а разборы ИИ в этих анализах сбросятся (их можно получить заново). Если поменяли только ФИО или номер карты, галочка ни на что не влияет.</span></label>
+</div>
+{% endif %}
+<div class="row"><button class="primary" type="submit">Сохранить изменения</button><a class="secondary" href="/patients/{{ p.id }}">Отмена</a></div>
+</form>
+{% endblock %}

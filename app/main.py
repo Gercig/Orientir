@@ -362,7 +362,52 @@ def patient_page(pid):
                            d_to=(end if period == "custom" else request.args.get("to", "")),
                            history=pt.analyses_of(pid, start, end), latest=allan[0] if allan else None,
                            saved=request.args.get("saved") == "1",
-                           deleted=request.args.get("deleted") == "1")
+                           deleted=request.args.get("deleted") == "1",
+                           pedited=request.args.get("pedited") == "1", recalc=request.args.get("recalc", type=int, default=0))
+
+
+def patient_edit_view(p, form, errors=None, status=200):
+    return render_template("patient_edit.html", nav="patients", p=p, form=form, errors=errors or [],
+                           today=pt.today().isoformat(), first=pt.first_analysis_date(p["id"]),
+                           min_birth=pt.today().replace(year=pt.today().year - 19).isoformat()), status
+
+
+@app.route("/patients/<int:pid>/edit", methods=["GET", "POST"])
+@role_required("doctor")
+def patient_edit(pid):
+    p = own_patient(pid)
+    if request.method == "GET":
+        return patient_edit_view(p, {"full_name": p["full_name"], "birth": p["birth"], "sex": p["sex"], "card": p["card"], "recalc": True})
+    f = request.form
+    form = {"full_name": " ".join(f.get("full_name", "").split()), "birth": f.get("birth", ""), "sex": f.get("sex", ""),
+            "card": f.get("card", "").strip(), "recalc": f.get("recalc") == "1"}
+    b = pt.parse_date(form["birth"])
+    first = pt.first_analysis_date(pid)
+    errors = []
+    if not (3 <= len(form["full_name"]) <= 120):
+        errors.append("ФИО: от 3 до 120 символов")
+    if form["sex"] not in ("f", "m"):
+        errors.append("Выберите пол")
+    if not b or b > pt.today() or pt.total_months(b, pt.today()) > 18 * 12:
+        errors.append("Дата рождения указана неверно: нужен ребёнок от 0 до 18 лет")
+    elif first and b > pt.parse_date(first):
+        errors.append(f"Дата рождения не может быть позже первого анализа ({pt.dmy(first)})")
+    if not re.fullmatch(r"[0-9A-Za-zА-Яа-я/-]{1,20}", form["card"]):
+        errors.append("№ карты: до 20 символов, буквы, цифры, дефис")
+    if errors:
+        return patient_edit_view(p, form, errors, 400)
+    err = pt.update_patient(pid, form["full_name"], form["sex"], b.isoformat(), form["card"])
+    if err:
+        return patient_edit_view(p, form, [err], 400)
+    what = [n for n, a, c in (("ФИО", p["full_name"], form["full_name"]), ("пол", p["sex"], form["sex"]),
+                              ("дата рождения", p["birth"], b.isoformat()), ("№ карты", p["card"], form["card"])) if a != c]
+    changed = 0
+    if form["recalc"] and ("пол" in what or "дата рождения" in what):
+        changed = pt.recalc_intervals(pid, form["sex"], b.isoformat())
+    if what:
+        store.audit(g.user["login"], "Изменил данные пациента",
+                    f"карта № {form['card']}: {', '.join(what)}" + (f", интервалы пересчитаны в анализах: {changed}" if changed else ""))
+    return redirect(url_for("patient_page", pid=pid, pedited=1 if what else 0, recalc=changed))
 
 
 @app.post("/patients/<int:pid>/note")
